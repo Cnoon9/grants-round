@@ -1,4 +1,5 @@
 import { Spinner } from "@chakra-ui/react";
+import { ChainId } from "common";
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
@@ -40,14 +41,22 @@ export default function RoundStats() {
 
       if (applications.length > 0) setNoStats(false);
 
-      const rounds: Array<{ roundId: string; chainId: number }> = [];
+      const rounds: Array<{ roundId: string; chainId: ChainId }> = [];
       applications.forEach((app) => {
         rounds.push({
           roundId: app.roundID,
           chainId: app.chainId,
         });
       });
-      dispatch(loadProjectStats(params.id!, rounds));
+
+      dispatch(
+        loadProjectStats(
+          params.id!,
+          params.registryAddress!,
+          params.chainId!,
+          rounds
+        )
+      );
     } else {
       setNoStats(true);
     }
@@ -90,9 +99,14 @@ export default function RoundStats() {
     setDetails(detailsTmp);
   }, [props.stats, props.rounds]);
 
-  const section = (description: any, container: any, pt: boolean) => (
+  const section = (
+    description: any,
+    container: any,
+    pt: boolean,
+    key: string
+  ) => (
     <div
-      key={Math.random() * 1000 + 1}
+      key={key}
       className={`grid md:grid-cols-7 sm:grid-cols-1 border-b border-gitcoin-grey-100 pb-10 ${
         pt && "pt-10"
       }`}
@@ -129,10 +143,11 @@ export default function RoundStats() {
             tooltip="The number of rounds this project has participated in."
           />
         </>,
-        false
+        false,
+        "render-round-stats"
       )}
 
-      {details.map((detail: any) =>
+      {details.map((detail: any, index: any) =>
         section(
           <RoundDetailsCard
             heading={detail.round?.programName}
@@ -176,7 +191,8 @@ export default function RoundStats() {
               border
             />
           </>,
-          true
+          true,
+          `details-${index}`
         )
       )}
     </>

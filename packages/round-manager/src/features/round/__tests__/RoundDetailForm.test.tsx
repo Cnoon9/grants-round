@@ -4,11 +4,12 @@ import { makeProgramData, renderWrapped } from "../../../test-utils";
 
 import { faker } from "@faker-js/faker";
 import moment from "moment";
-import { ChainId, CHAINS } from "../../api/utils";
+import { CHAINS } from "../../api/utils";
 import { useWallet } from "../../common/Auth";
 import { FormStepper } from "../../common/FormStepper";
 import { FormContext } from "../../common/FormWizard";
 import { RoundDetailForm } from "../RoundDetailForm";
+import { ChainId } from "common";
 
 jest.mock("../../common/Auth");
 jest.mock("@rainbow-me/rainbowkit", () => ({
@@ -102,6 +103,12 @@ describe("<RoundDetailForm />", () => {
     expect(contactInfoInput).toBeInTheDocument();
   });
 
+  it("renders round type selection radio button", async () => {
+    renderWrapped(<RoundDetailForm stepper={FormStepper} />);
+    const roundTypeRadioBtn = screen.getByTestId("round-type-selection");
+    expect(roundTypeRadioBtn).toBeInTheDocument();
+  });
+
   it("requires contact information input to not be empty", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
     const submitButton = screen.getByRole("button", {
@@ -169,51 +176,10 @@ describe("<RoundDetailForm />", () => {
     });
     const error = infoInput.parentElement?.querySelector("p");
     expect(error).toBeInTheDocument();
-    expect(error).toHaveTextContent(
-      "roundMetadata.support.info must be a valid URL"
-    );
+    expect(error).toHaveTextContent("Must be a valid URL");
   });
 
-  it("validates round start time is after application start time", async () => {
-    renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const startDateInputs = screen.getAllByLabelText("Start Date");
-    const endDateInputs = screen.getAllByLabelText("End Date");
-
-    await act(async () => {
-      /* Prefill round name to ignore errors from it */
-      fireEvent.input(screen.getByLabelText("Round Name"), {
-        target: { value: "testinground" },
-      });
-
-      /* Applicactions start date */
-      expect(startDateInputs[0].id).toBe("applicationsStartTime");
-      fireEvent.change(startDateInputs[0], {
-        target: { value: "08/25/2022 12:00 AM" },
-      });
-
-      /* Round start date */
-      expect(startDateInputs[1].id).toBe("roundStartTime");
-      fireEvent.change(startDateInputs[1], {
-        target: { value: "08/24/2022 12:01 AM" },
-      });
-
-      /* Applications end date */
-      expect(endDateInputs[0].id).toBe("applicationsEndTime");
-      fireEvent.change(endDateInputs[0], {
-        target: { value: "08/25/2022 12:00 AM" },
-      });
-
-      /* Trigger validation */
-      fireEvent.click(screen.getByText("Launch"));
-    });
-
-    const errors = screen.getByText(
-      "Round start date must be later than applications end date"
-    );
-    expect(errors).toBeInTheDocument();
-  });
-
-  it("validates applications end date is after applications start date", async () => {
+  it("validates applications end date is after applications start date.", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
     const startDateInputs = screen.getAllByLabelText("Start Date");
     const endDateInputs = screen.getAllByLabelText("End Date");
@@ -241,12 +207,12 @@ describe("<RoundDetailForm />", () => {
     });
 
     const errors = screen.getByText(
-      "Applications end date must be later than applications start date"
+      "Applications end date must be later than applications start date."
     );
     expect(errors).toBeInTheDocument();
   });
 
-  it("validates round end date is after round start date", async () => {
+  it("validates round end date is after round start date.", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
     const startDateInputs = screen.getAllByLabelText("Start Date");
     const endDateInputs = screen.getAllByLabelText("End Date");
@@ -274,7 +240,7 @@ describe("<RoundDetailForm />", () => {
     });
 
     const errors = screen.getByText(
-      "Round end date must be later than the round start date"
+      "Round end date must be later than the round start date."
     );
     expect(errors).toBeInTheDocument();
   });
@@ -345,6 +311,10 @@ describe("<RoundDetailForm />", () => {
     fireEvent.change(endDateInputs[1], {
       target: { value: moment(roundEndTime).format("MM/DD/YYYY h:mm A") },
     });
+
+    /* Round Type Selection */
+    const roundTypeOption = screen.getByTestId("round-type-public");
+    fireEvent.click(roundTypeOption);
 
     /* Trigger validation */
     fireEvent.click(screen.getByText("Next"));

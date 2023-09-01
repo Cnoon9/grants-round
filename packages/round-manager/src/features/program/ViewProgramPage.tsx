@@ -10,8 +10,9 @@ import { RefreshIcon } from "@heroicons/react/outline";
 import { Button } from "common/src/styles";
 import { useWallet } from "../common/Auth";
 import Navbar from "../common/Navbar";
-import Footer from "../common/Footer";
-import { abbreviateAddress, getUTCDate, getUTCTime } from "../api/utils";
+import Footer from "common/src/components/Footer";
+import { abbreviateAddress } from "../api/utils";
+import { formatUTCDateAsISOString, getUTCTime } from "common";
 import { datadogLogs } from "@datadog/browser-logs";
 import { useEffect, useState } from "react";
 import NotFoundPage from "../common/NotFoundPage";
@@ -21,6 +22,7 @@ import { useProgramById } from "../../context/program/ReadProgramContext";
 import { Spinner } from "../common/Spinner";
 import { useRounds } from "../../context/round/RoundContext";
 import { ProgressStatus } from "../api/types";
+import { useDebugMode } from "../../hooks";
 
 export default function ViewProgram() {
   datadogLogs.logger.info("====> Route: /program/:id");
@@ -39,10 +41,16 @@ export default function ViewProgram() {
 
   const [programExists, setProgramExists] = useState(true);
   const [hasAccess, setHasAccess] = useState(true);
+  const debugModeEnabled = useDebugMode();
 
   useEffect(() => {
     if (isProgramFetched) {
       setProgramExists(!!programToRender);
+
+      if (debugModeEnabled) {
+        setHasAccess(true);
+        return;
+      }
 
       if (programToRender) {
         programToRender.operatorWallets.includes(address?.toLowerCase())
@@ -52,7 +60,7 @@ export default function ViewProgram() {
         setHasAccess(true);
       }
     }
-  }, [isProgramFetched, programToRender, address]);
+  }, [isProgramFetched, programToRender, address, debugModeEnabled]);
 
   const roundItems = rounds
     ? rounds.map((round, index) => (
@@ -89,11 +97,11 @@ export default function ViewProgram() {
                       data-testid="application-time-period"
                     >
                       <span data-testid="application-start-time-period">
-                        {getUTCDate(round.applicationsStartTime)}
+                        {formatUTCDateAsISOString(round.applicationsStartTime)}
                       </span>
                       <span className="mx-1">-</span>
                       <span data-testid="application-end-time-period">
-                        {getUTCDate(round.applicationsEndTime)}
+                        {formatUTCDateAsISOString(round.applicationsEndTime)}
                       </span>
                     </p>
                     <p className="text-xs text-grey-400">
@@ -124,11 +132,11 @@ export default function ViewProgram() {
                       data-testid="round-time-period"
                     >
                       <span data-testid="round-start-time-period">
-                        {getUTCDate(round.roundStartTime)}
+                        {formatUTCDateAsISOString(round.roundStartTime)}
                       </span>
                       <span className="mx-1">-</span>
                       <span data-testid="round-end-time-period">
-                        {getUTCDate(round.roundEndTime)}
+                        {formatUTCDateAsISOString(round.roundEndTime)}
                       </span>
                     </p>
 

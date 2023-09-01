@@ -1,35 +1,32 @@
 import "./browserPatches";
 
+import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Provider } from "react-redux";
-import { ReduxRouter } from "@lagunovsky/redux-react-router";
-import { RoundProvider } from "./context/RoundContext";
-import { Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { WagmiConfig } from "wagmi";
-import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import { RoundProvider } from "./context/RoundContext";
 import { initDatadog } from "./datadog";
 import { initSentry } from "./sentry";
 import { initTagmanager } from "./tagmanager";
-
-import { store } from "./app/store";
-import { chains, client as WagmiClient } from "./app/wagmi";
+import { chains, config } from "./app/wagmi";
 import reportWebVitals from "./reportWebVitals";
-import history from "./history";
 
 import "./index.css";
 
 // Routes
+import AccessDenied from "./features/common/AccessDenied";
 import Auth from "./features/common/Auth";
 import NotFound from "./features/common/NotFoundPage";
-import AccessDenied from "./features/common/AccessDenied";
-import ViewRound from "./features/round/ViewRoundPage";
-import ViewProjectDetails from "./features/round/ViewProjectDetails";
-import { CartProvider } from "./context/CartContext";
-import ViewCart from "./features/round/ViewCartPage";
+import ApplyNowPage from "./features/discovery/ApplyNowPage";
+import LandingPage from "./features/discovery/LandingPage";
 import PassportConnect from "./features/round/PassportConnect";
-import { QFDonationProvider } from "./context/QFDonationContext";
 import ThankYou from "./features/round/ThankYou";
+import ViewProjectDetails from "./features/round/ViewProjectDetails";
+import ViewRound from "./features/round/ViewRoundPage";
+import ViewContributionHistory from "./features/contributors/ViewContributionHistory";
+import ViewCart from "./features/round/ViewCartPage/ViewCartPage";
+import { ChakraProvider } from "@chakra-ui/react";
 
 // Initialize sentry
 initSentry();
@@ -46,69 +43,58 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <React.StrictMode>
-    <Provider store={store}>
-      <WagmiConfig client={WagmiClient}>
+    <ChakraProvider>
+      <WagmiConfig config={config}>
         <RainbowKitProvider coolMode chains={chains}>
           <RoundProvider>
-            <CartProvider>
-              <ReduxRouter history={history} store={store}>
-                <Routes>
-                  {/* Protected Routes */}
-                  <Route element={<Auth />} />
+            <HashRouter>
+              <Routes>
+                {/* Protected Routes */}
+                <Route element={<Auth />} />
 
-                  {/* Default Route */}
-                  <Route path="/" element={<NotFound />} />
+                {/* Default Route */}
+                <Route path="/" element={<LandingPage />} />
 
-                  {/* Round Routes */}
-                  <Route
-                    path="/round/:chainId/:roundId"
-                    element={<ViewRound />}
-                  />
-                  <Route
-                    path="/round/:chainId/:roundId/:applicationId"
-                    element={<ViewProjectDetails />}
-                  />
+                {/* Apply Now Page */}
+                <Route path="/apply-now" element={<ApplyNowPage />} />
 
-                  <Route
-                    path="/round/:chainId/:roundId/cart"
-                    element={
-                      <QFDonationProvider>
-                        <ViewCart />
-                      </QFDonationProvider>
-                    }
-                  />
+                {/* Round Routes */}
+                <Route
+                  path="/round/:chainId/:roundId"
+                  element={<ViewRound />}
+                />
+                <Route
+                  path="/round/:chainId/:roundId/:applicationId"
+                  element={<ViewProjectDetails />}
+                />
 
-                  <Route
-                    path="/round/:chainId/:roundId/:txHash/thankyou"
-                    element={
-                      <QFDonationProvider>
-                        <ThankYou />
-                      </QFDonationProvider>
-                    }
-                  />
+                <Route path="/cart" element={<ViewCart />} />
 
-                  {/* Passport Connect */}
-                  <Route
-                    path="/round/:chainId/:roundId/passport/connect"
-                    element={<PassportConnect />}
-                  />
+                <Route path="/thankyou" element={<ThankYou />} />
 
-                  {/* Access Denied */}
-                  <Route path="/access-denied" element={<AccessDenied />} />
+                {/* Passport Connect */}
+                <Route
+                  path="/round/:chainId/:roundId/passport/connect"
+                  element={<PassportConnect />}
+                />
 
-                  {/* 404 */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </ReduxRouter>
-            </CartProvider>
+                <Route
+                  path="/contributors/:address"
+                  element={<ViewContributionHistory />}
+                />
+
+                {/* Access Denied */}
+                <Route path="/access-denied" element={<AccessDenied />} />
+
+                {/* 404 */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </HashRouter>
           </RoundProvider>
         </RainbowKitProvider>
       </WagmiConfig>
-    </Provider>
+    </ChakraProvider>
   </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();

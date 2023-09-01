@@ -37,6 +37,7 @@ import CreateRound from "./features/round/CreateRoundPage";
 import ViewApplication from "./features/round/ViewApplicationPage";
 import ViewRoundPage from "./features/round/ViewRoundPage";
 import { initSentry } from "./sentry";
+import { UpdateRoundProvider } from "./context/round/UpdateRoundContext";
 
 // Initialize sentry
 initSentry();
@@ -90,7 +91,9 @@ root.render(
                           <FinalizeRoundProvider>
                             <FundContractProvider>
                               <ReclaimFundsProvider>
-                                <ViewRoundPage />
+                                <UpdateRoundProvider>
+                                  <ViewRoundPage />
+                                </UpdateRoundProvider>
                               </ReclaimFundsProvider>
                             </FundContractProvider>
                           </FinalizeRoundProvider>

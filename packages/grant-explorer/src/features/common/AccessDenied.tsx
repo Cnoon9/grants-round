@@ -1,6 +1,6 @@
 import Navbar from "./Navbar";
 import { datadogLogs } from "@datadog/browser-logs";
-import Footer from "./Footer";
+import Footer from "common/src/components/Footer";
 
 export default function AccessDenied() {
   datadogLogs.logger.info(`====> Route: NotFound`);
@@ -8,7 +8,7 @@ export default function AccessDenied() {
 
   return (
     <>
-      <Navbar roundUrlPath={""} />
+      <Navbar />
       <div className="lg:mx-20 h-screen px-4 py-7">
         <main className="h-screen">
           <div className="flex pt-8">

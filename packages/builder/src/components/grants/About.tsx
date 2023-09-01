@@ -6,23 +6,12 @@ import { GithubLogo, TwitterLogo } from "../../assets";
 import useValidateCredential from "../../hooks/useValidateCredential";
 import { RootState } from "../../reducers";
 import colors from "../../styles/colors";
-import { CredentialProvider, FormInputs, Metadata, Project } from "../../types";
+import { FormInputs, Metadata, Project } from "../../types";
 import { formatDateFromMs } from "../../utils/components";
 import Calendar from "../icons/Calendar";
 import LinkIcon from "../icons/LinkIcon";
-import Shield from "../icons/Shield";
 import ApplicationCard from "./ApplicationCard";
-
-function Verified() {
-  return (
-    <div className="flex rounded bg-green-text/25 px-2 py-0.5 mt-1">
-      <Shield dimension={16} color={colors["green-text"]} />{" "}
-      <p className="pl-2 text-green-text text-xs font-normal mt-0.5">
-        Verified
-      </p>
-    </div>
-  );
-}
+import GreenVerifiedBadge from "../badges/GreenVerifiedBadge";
 
 export default function About({
   project,
@@ -53,13 +42,11 @@ export default function About({
 
   const { isValid: validTwitterCredential } = useValidateCredential(
     project?.credentials?.twitter,
-    CredentialProvider.Twitter,
     project?.projectTwitter
   );
 
   const { isValid: validGithubCredential } = useValidateCredential(
     project?.credentials?.github,
-    CredentialProvider.Github,
     project?.projectGithub
   );
 
@@ -69,15 +56,16 @@ export default function About({
         <span className="text-[20px]">My Applications</span>
       </Box>
       <Box>
-        {props.applications.map((application) => {
+        {props.applications.map((application, index) => {
           const roundID = application?.roundID;
           const cardData = {
             application,
             roundID,
             chainId: application.chainId,
           };
+
           return (
-            <Box key={roundID} m={2}>
+            <Box key={[roundID, index].join("-")} m={2}>
               <ApplicationCard applicationData={cardData} />
             </Box>
           );
@@ -117,7 +105,7 @@ export default function About({
                 >
                   {project?.projectTwitter}
                 </a>
-                {validTwitterCredential && <Verified />}
+                {validTwitterCredential && <GreenVerifiedBadge />}
               </div>
             )}
             {project?.projectGithub && (
@@ -131,7 +119,7 @@ export default function About({
                 >
                   {project?.projectGithub}
                 </a>
-                {validGithubCredential && <Verified />}
+                {validGithubCredential && <GreenVerifiedBadge />}
               </div>
             )}
           </div>
@@ -152,7 +140,7 @@ export default function About({
                 </span>
               </p>
             </div>
-            {project?.projectGithub && (
+            {project?.userGithub && (
               <div className="flex items-center m-2">
                 <img
                   className="h-4 ml-0.5 mr-2 mt-1"
@@ -177,12 +165,11 @@ export default function About({
           </div>
         )}
         <div className="mt-4">
-          <p className="text-primary-text ml-2 xl:mt-2 lg:mt-2 font-bold">
-            Description
-          </p>
-          <div className="pt-6 mb-12 ml-2 prose prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-a:text-blue-600">
+          <div className="mb-12 ml-2 prose prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-a:text-blue-600">
+            <div className="text-sm">Description</div>
             {project?.description && (
               <div
+                className="pr-4"
                 // eslint-disable-next-line react/no-danger
                 dangerouslySetInnerHTML={{
                   __html: renderToHTML(

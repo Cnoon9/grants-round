@@ -1,5 +1,5 @@
 module.exports = {
-  content: ["./src/**/*.{js,jsx,ts,tsx}"],
+  content: ["./src/**/*.{js,jsx,ts,tsx}", "../common/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
       animation: {
@@ -13,6 +13,16 @@ module.exports = {
         black: "#000",
         white: "#FFF",
         grey: {
+          50: "#F3F3F5",
+          100: "#E2E0E7",
+          150: "#F3F3F5",
+          200: "#C4C1CF",
+          250: "#BEBEBE",
+          300: "#A7A2B6",
+          400: "#757087",
+          500: "#0E0333",
+        },
+        gray: {
           100: "#E2E0E7",
           150: "#F3F3F5",
           200: "#C4C1CF",
@@ -59,9 +69,9 @@ module.exports = {
           400: "#656A68",
           500: "#2B3330",
           600: "#0B110F",
-          700: "#130C03", 
+          700: "#130C03",
           800: "#000000",
-        }
+        },
       },
       keyframes: {
         violetTransition: {

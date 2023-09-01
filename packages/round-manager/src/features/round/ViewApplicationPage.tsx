@@ -18,7 +18,7 @@ import { useWallet } from "../common/Auth";
 import { Button } from "common/src/styles";
 import { ReactComponent as TwitterIcon } from "../../assets/twitter-logo.svg";
 import { ReactComponent as GithubIcon } from "../../assets/github-logo.svg";
-import Footer from "../common/Footer";
+import Footer from "common/src/components/Footer";
 import { datadogLogs } from "@datadog/browser-logs";
 import { useBulkUpdateGrantApplications } from "../../context/application/BulkUpdateGrantApplicationContext";
 import ProgressModal from "../common/ProgressModal";
@@ -48,6 +48,7 @@ import {
   VerifiedCredentialState,
 } from "common";
 import { renderToHTML } from "common";
+import { useDebugMode } from "../../hooks";
 
 type ApplicationStatus = "APPROVED" | "REJECTED";
 
@@ -222,13 +223,14 @@ export default function ViewApplicationPage() {
 
   const [applicationExists, setApplicationExists] = useState(true);
   const [hasAccess, setHasAccess] = useState(true);
+  const debugModeEnabled = useDebugMode();
 
   useEffect(() => {
     if (!isLoading) {
       setApplicationExists(!!application);
 
-      /* During development, give frontend access to all rounds */
-      if (process.env.REACT_APP_IGNORE_FRONTEND_CHECKS) {
+      /* In debug mode, give frontend access to all rounds */
+      if (debugModeEnabled) {
         setHasAccess(true);
         return;
       }
@@ -237,7 +239,7 @@ export default function ViewApplicationPage() {
         setHasAccess(!!round.operatorWallets?.includes(address?.toLowerCase()));
       }
     }
-  }, [address, application, isLoading, round]);
+  }, [address, application, isLoading, round, debugModeEnabled]);
 
   const [answerBlocks, setAnswerBlocks] = useState<AnswerBlock[]>();
   useEffect(() => {
@@ -261,7 +263,10 @@ export default function ViewApplicationPage() {
               const encryptedString: Blob = await response.blob();
 
               const lit = new Lit({
-                chain: chain.name.toLowerCase(),
+                chain:
+                  chain.name.toLowerCase() === "pgn"
+                    ? "publicGoodsNetwork"
+                    : chain.name.toLowerCase(),
                 contract: utils.getAddress(roundId),
               });
 
@@ -296,6 +301,10 @@ export default function ViewApplicationPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [application, hasAccess, isLoading]);
+
+  // Handle case where project github is not set but user github is set. if both are not available, set to null
+  const registeredGithub =
+    application?.project?.projectGithub ?? application?.project?.userGithub;
 
   return isLoading ? (
     <Spinner text="We're fetching the round application." />
@@ -423,9 +432,14 @@ export default function ViewApplicationPage() {
                       data-testid="twitter-info"
                     >
                       <TwitterIcon className="h-4 w-4 mr-2" />
-                      <span className="text-sm text-violet-400 mr-2">
+                      <a
+                        href={`https://twitter.com/${application?.project?.projectTwitter}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-violet-400 mr-2"
+                      >
                         {application?.project?.projectTwitter}
-                      </span>
+                      </a>
                       {getVerifiableCredentialVerificationResultView("twitter")}
                     </span>
 
@@ -434,9 +448,14 @@ export default function ViewApplicationPage() {
                       data-testid="github-info"
                     >
                       <GithubIcon className="h-4 w-4 mr-2" />
-                      <span className="text-sm text-violet-400 mr-2">
-                        {application?.project?.projectGithub}
-                      </span>
+                      <a
+                        href={`https://github.com/${registeredGithub}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-violet-400 mr-2"
+                      >
+                        {registeredGithub}
+                      </a>
                       {getVerifiableCredentialVerificationResultView("github")}
                     </span>
 
@@ -447,9 +466,9 @@ export default function ViewApplicationPage() {
                       <CalendarIcon className="h-4 w-4 mr-2" />
                       <span className="text-sm text-violet-400 mr-2">
                         Created on:{" "}
-                        {application?.createdAt
+                        {application?.project?.createdAt
                           ? formatDateWithOrdinal(
-                              new Date(Number(application?.createdAt) * 1000)
+                              new Date(Number(application?.project?.createdAt))
                             )
                           : "-"}
                       </span>

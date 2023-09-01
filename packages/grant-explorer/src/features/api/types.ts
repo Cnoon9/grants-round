@@ -1,8 +1,9 @@
-import { Signer } from "@ethersproject/abstract-signer";
-import { Web3Provider } from "@ethersproject/providers";
 import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
+import { ChainId } from "common";
+import { Hex } from "viem";
+import { WalletClient } from "wagmi";
 
-export type Network = "goerli" | "optimism" | "Fantom";
+export type Network = "goerli" | "optimism" | "fantom" | "pgn";
 
 export interface Web3Instance {
   /**
@@ -17,8 +18,8 @@ export interface Web3Instance {
     name: string;
     network: Network;
   };
-  provider: Web3Provider;
-  signer?: Signer;
+  provider: WalletClient;
+  signer?: WalletClient;
 }
 
 export interface MetadataPointer {
@@ -49,30 +50,15 @@ export interface IPFSObject {
   };
 }
 
-/** Base Contract interface */
-export interface Contract {
-  /**
-   * Contract address
-   */
-  address?: string;
-  /**
-   * Contract ABI in Human Readable ABI format
-   */
-  abi: Array<string>;
-  /**
-   * Contract ABI in binary format
-   */
-  bytecode?: string;
-}
-
-// TODO: Document this
 export interface Requirement {
+  // Requirement for the round
   requirement?: string;
 }
 
-// TODO: Document this
 export interface Eligibility {
+  // Eligibility for the round
   description: string;
+  // Requirements for the round
   requirements?: Requirement[];
 }
 
@@ -86,6 +72,7 @@ export interface Round {
    */
   roundMetadata?: {
     name: string;
+    roundType: string;
     eligibility: Eligibility;
     programContractAddress: string;
     quadraticFundingConfig?: {
@@ -153,23 +140,19 @@ export type GrantApplicationFormAnswer = {
 };
 
 export type Project = {
-  grantApplicationId: GrantApplicationId;
-  projectRegistryId: ProjectRegistryId;
-  recipient: recipient;
+  grantApplicationId: string;
+  projectRegistryId: string;
+  recipient: string;
   projectMetadata: ProjectMetadata;
   grantApplicationFormAnswers: GrantApplicationFormAnswer[];
   status: ApplicationStatus;
   applicationIndex: number;
 };
-export type GrantApplicationId = string;
-export type ProjectRegistryId = string;
-export type recipient = string;
 
-export type CartDonation = {
-  projectRegistryId: ProjectRegistryId;
+export type CartProject = Project & {
+  roundId: string;
+  chainId: ChainId;
   amount: string;
-  projectAddress: recipient;
-  applicationIndex: number;
 };
 
 export enum ApplicationStatus {
@@ -210,9 +193,16 @@ export enum ProgressStatus {
 
 export type PayoutToken = {
   name: string;
-  chainId: string;
-  address: string;
+  chainId: ChainId;
+  address: Hex;
   decimal: number;
   logo?: string;
-  default?: boolean; // TODO: this is only used to provide the initial placeholder item, look for better solution
+  default?: boolean;
+  redstoneTokenId?: string;
+  permitVersion?: string;
+  //TODO: remove if the previous default was intended to be used as defaultForVoting
+  defaultForVoting: boolean;
+  //TODO: split PayoutTokens and VotingTokens in
+  // 2 different types/lists and remove the following attribute
+  canVote: boolean;
 };

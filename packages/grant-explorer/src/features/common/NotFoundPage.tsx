@@ -1,17 +1,20 @@
 import { Link } from "react-router-dom";
 import Navbar from "./Navbar";
 import { Button } from "common/src/styles";
-import { ReactComponent as NotFoundBanner } from "../../assets/404.svg";
+const NotFoundBanner = React.lazy(() => import("../../assets/404"));
 import { datadogLogs } from "@datadog/browser-logs";
-import Footer from "./Footer";
+import Footer from "common/src/components/Footer";
+import React, { Suspense } from "react";
 
 export default function NotFoundPage() {
   datadogLogs.logger.info(`====> Route: NotFound`);
   datadogLogs.logger.info(`====> URL: ${window.location.href}`);
 
+  console.error("displayed 404 page");
+
   return (
     <>
-      <Navbar roundUrlPath={""} />
+      <Navbar />
       <div className="relative top-16 lg:mx-20 h-screen px-4 py-7">
         <main>
           <div className="flex pt-8">
@@ -39,7 +42,18 @@ export default function NotFoundPage() {
                 </Button>
               </Link>
 
-              <NotFoundBanner className="max-w-full" />
+              <Suspense
+                fallback={
+                  <div
+                    style={{
+                      width: "502px",
+                      height: "360px",
+                    }}
+                  />
+                }
+              >
+                <NotFoundBanner className="max-w-full" />
+              </Suspense>
             </div>
           </div>
         </main>

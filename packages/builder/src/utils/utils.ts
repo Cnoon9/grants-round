@@ -1,12 +1,10 @@
 import { datadogLogs } from "@datadog/browser-logs";
 import { datadogRum } from "@datadog/browser-rum";
 import { BigNumberish, ethers } from "ethers";
+import { ChainId } from "common";
 import { global } from "../global";
 import { AddressType, Metadata, Project } from "../types";
 import gnosisABI from "../contracts/abis/gnosis.json";
-
-// Checks if tests are being run jest
-export const isJestRunning = () => process.env.JEST_WORKER_ID !== undefined;
 
 export const parseRoundToApply = (
   s?: string
@@ -61,7 +59,7 @@ export const getProjectURIComponents = (id: string) => {
   };
 };
 
-export const getProviderByChainId = (chainId: number) => {
+export const getProviderByChainId = (chainId: ChainId) => {
   const { web3Provider } = global;
 
   const chainConfig = web3Provider?.chains?.find(

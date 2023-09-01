@@ -7,7 +7,7 @@ import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
 import { BigNumber } from "ethers";
 import { SchemaQuestion } from "./utils";
 
-export type Network = "goerli" | "optimism";
+export type Network = "goerli" | "optimism" | "fantom" | "pgn";
 
 export interface Web3Instance {
   /**
@@ -141,12 +141,16 @@ export interface Round {
    * The on-chain unique round ID
    */
   id?: string;
+
+  chainId?: number;
+
   /**
    * Metadata of the Round to be stored off-chain
    */
   roundMetadata: {
     name: string;
     programContractAddress: string;
+    roundType: string;
     eligibility?: {
       description: string;
       requirements: { requirement: string }[];
@@ -235,11 +239,14 @@ export interface Round {
 
 export type MatchingStatsData = {
   index?: number;
-  projectName?: string;
-  uniqueContributorsCount: number;
+  projectName: string;
+  uniqueContributorsCount?: number;
+  contributionsCount: number;
   matchPoolPercentage: number;
   projectId: string;
+  applicationId: string;
   matchAmountInToken: BigNumber;
+  originalMatchAmountInToken: BigNumber;
   projectPayoutAddress: string;
   status?: string;
   hash?: string;
@@ -381,6 +388,7 @@ export type Project = {
   bannerImg?: string;
   logoImg?: string;
   projectGithub?: string;
+  userGithub?: string;
   projectTwitter?: string;
   credentials: ProjectCredentials;
   metaPtr: MetadataPointer;
@@ -389,4 +397,13 @@ export type Project = {
 export type TransactionBlock = {
   transactionBlockNumber: number;
   error?: unknown;
+};
+
+export type EditedGroups = {
+  ApplicationMetaPointer: boolean;
+  MatchAmount: boolean;
+  RoundFeeAddress: boolean;
+  RoundFeePercentage: boolean;
+  RoundMetaPointer: boolean;
+  StartAndEndTimes: boolean;
 };

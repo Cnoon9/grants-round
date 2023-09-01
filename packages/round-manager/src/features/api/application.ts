@@ -18,6 +18,8 @@ import { Contract, ethers } from "ethers";
 import { Signer } from "@ethersproject/abstract-signer";
 import { Web3Provider } from "@ethersproject/providers";
 import { graphql_fetch } from "common";
+// import { verifyApplicationMetadata } from "common/src/verification";
+// import { fetchProjectOwners } from "common/src/registry";
 
 type RoundApplication = {
   id: string;
@@ -286,7 +288,7 @@ const updateApplicationStatusFromContract = async (
   projectsMetaPtr: MetadataPointer,
   filterByStatus?: string
 ) => {
-  // Handle scenario where operator hasn't review any projects in the round
+  // Handle scenario where operator hasn't reviewed any projects in the round
   if (!projectsMetaPtr)
     return filterByStatus
       ? applications.filter(

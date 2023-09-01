@@ -1,4 +1,3 @@
-import { ethers } from "ethers";
 import { fetchFromIPFS, graphql_fetch } from "./utils";
 import {
   ApplicationStatus,
@@ -7,6 +6,12 @@ import {
   Project,
   Round,
 } from "./types";
+import {
+  Client as AlloIndexerClient,
+  DetailedVote as Contribution,
+} from "allo-indexer-client";
+import { useEffect, useState } from "react";
+import { getAddress } from "viem";
 
 /**
  * Shape of subgraph response
@@ -20,7 +25,7 @@ export interface GetRoundByIdResult {
 /**
  * Shape of subgraph response of Round
  */
-interface RoundResult {
+export interface RoundResult {
   id: string;
   program: {
     id: string;
@@ -32,13 +37,10 @@ interface RoundResult {
   roundStartTime: string;
   roundEndTime: string;
   token: string;
-  votingStrategy: {
-    id: string;
-  };
+  votingStrategy: string;
   projectsMetaPtr?: MetadataPointer | null;
   projects: RoundProjectResult[];
 }
-
 interface RoundProjectResult {
   id: string;
   project: string;
@@ -50,8 +52,9 @@ interface RoundProjectResult {
 /**
  * Shape of IPFS content of Round RoundMetaPtr
  */
-type RoundMetadata = {
+export type RoundMetadata = {
   name: string;
+  roundType: string;
   eligibility: Eligibility;
   programContractAddress: string;
 };
@@ -61,6 +64,14 @@ export type RoundProject = {
   status: ApplicationStatus;
   payoutAddress: string;
 };
+
+export type ContributionHistoryState =
+  | { type: "loading" }
+  | {
+      type: "loaded";
+      data: { chainId: number; data: Contribution[] }[];
+    }
+  | { type: "error"; error: string };
 
 export async function getRoundById(
   roundId: string,
@@ -92,20 +103,23 @@ export async function getRoundById(
             roundStartTime
             roundEndTime
             token
-            votingStrategy {
-              id
-            }
+            votingStrategy
             projectsMetaPtr {
               pointer
             }
-            projects(first: 1000) {
+            projects(
+              first: 1000
+              where:{
+                status: 1
+              }
+            ) {
               id
               project
               status
               applicationIndex
               metaPtr {
-                      protocol
-                      pointer
+                protocol
+                pointer
               }
             }
           }
@@ -128,7 +142,7 @@ export async function getRoundById(
       };
     });
 
-    const approvedProjectsWithMetadata = await loadApprovedProjects(
+    const approvedProjectsWithMetadata = await loadApprovedProjectsMetadata(
       round,
       chainId
     );
@@ -143,7 +157,7 @@ export async function getRoundById(
       roundStartTime: new Date(parseInt(round.roundStartTime) * 1000),
       roundEndTime: new Date(parseInt(round.roundEndTime) * 1000),
       token: round.token,
-      votingStrategy: round.votingStrategy.id,
+      votingStrategy: round.votingStrategy,
       ownedBy: round.program.id,
       approvedProjects: approvedProjectsWithMetadata,
     };
@@ -153,7 +167,7 @@ export async function getRoundById(
   }
 }
 
-function convertStatus(status: string | number) {
+export function convertStatus(status: string | number) {
   switch (status) {
     case 0:
       return "PENDING";
@@ -168,7 +182,7 @@ function convertStatus(status: string | number) {
   }
 }
 
-async function loadApprovedProjects(
+async function loadApprovedProjectsMetadata(
   round: RoundResult,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   chainId: any
@@ -177,11 +191,8 @@ async function loadApprovedProjects(
     return [];
   }
 
-  const allRoundProjects = round.projects;
+  const approvedProjects = round.projects;
 
-  const approvedProjects = allRoundProjects.filter(
-    (project) => project.status === ApplicationStatus.APPROVED
-  );
   const fetchApprovedProjectMetadata: Promise<Project>[] = approvedProjects.map(
     (project: RoundProjectResult) =>
       fetchMetadataAndMapProject(project, chainId)
@@ -248,7 +259,7 @@ export async function getProjectOwners(
     return (
       res.data?.projects[0]?.accounts.map(
         (account: { account: { address: string } }) =>
-          ethers.utils.getAddress(account.account.address)
+          getAddress(account.account.address)
       ) || []
     );
   } catch (error) {
@@ -256,3 +267,76 @@ export async function getProjectOwners(
     throw Error("Unable to fetch project owners");
   }
 }
+
+export const useContributionHistory = (
+  chainIds: number[],
+  rawAddress: string
+) => {
+  const [state, setState] = useState<ContributionHistoryState>({
+    type: "loading",
+  });
+
+  useEffect(() => {
+    if (!process.env.REACT_APP_ALLO_API_URL) {
+      throw new Error("REACT_APP_ALLO_API_URL is not set");
+    }
+
+    const fetchContributions = async () => {
+      const fetchPromises: Promise<{
+        chainId: number;
+        data: Contribution[];
+        error?: string;
+      }>[] = chainIds.map((chainId: number) => {
+        if (!process.env.REACT_APP_ALLO_API_URL) {
+          throw new Error("REACT_APP_ALLO_API_URL is not set");
+        }
+
+        const client = new AlloIndexerClient(
+          fetch.bind(window),
+          process.env.REACT_APP_ALLO_API_URL,
+          chainId
+        );
+
+        let address = "";
+        try {
+          // ensure the address is a valid address
+          address = getAddress(rawAddress.toLowerCase());
+        } catch (e) {
+          return Promise.resolve({
+            chainId,
+            error: "Invalid address",
+            data: [],
+          });
+        }
+
+        return client
+          .getContributionsByAddress(address)
+          .then((data) => {
+            return { chainId, error: undefined, data };
+          })
+          .catch((error) => {
+            console.log(
+              `Error fetching contribution history for chain ${chainId}:`,
+              error
+            );
+            return { chainId, error: error.toString() as string, data: [] };
+          });
+      });
+
+      const fetchResults = await Promise.all(fetchPromises);
+
+      if (fetchResults.every((result) => result.error)) {
+        setState({
+          type: "error",
+          error: "Error fetching contribution history for all chains",
+        });
+      } else {
+        setState({ type: "loaded", data: fetchResults });
+      }
+    };
+
+    fetchContributions();
+  }, [chainIds, rawAddress]);
+
+  return state;
+};

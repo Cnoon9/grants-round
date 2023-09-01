@@ -1,6 +1,7 @@
 import { datadogLogs } from "@datadog/browser-logs";
 import { Tab } from "@headlessui/react";
 import {
+  AdjustmentsIcon,
   ArrowCircleRightIcon,
   CalendarIcon,
   ChartBarIcon,
@@ -11,81 +12,65 @@ import {
   InboxIcon,
   UserGroupIcon,
 } from "@heroicons/react/solid";
+import { formatUTCDateAsISOString, getUTCTime } from "common";
 import { Button } from "common/src/styles";
-import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import tw from "tailwind-styled-components";
 import { ReactComponent as GrantExplorerLogo } from "../../assets/grantexplorer-icon.svg";
 import { useApplicationByRoundId } from "../../context/application/ApplicationContext";
 import { useRoundById } from "../../context/round/RoundContext";
+import { useDebugMode } from "../../hooks";
 import {
   ApplicationStatus,
   GrantApplication,
   ProgressStatus,
   Round,
 } from "../api/types";
-import { getUTCDate, getUTCTime } from "../api/utils";
 import AccessDenied from "../common/AccessDenied";
 import { useWallet } from "../common/Auth";
 import CopyToClipboardButton from "../common/CopyToClipboardButton";
-import Footer from "../common/Footer";
+import Footer from "common/src/components/Footer";
 import Navbar from "../common/Navbar";
 import NotFoundPage from "../common/NotFoundPage";
 import { Spinner } from "../common/Spinner";
+import { horizontalTabStyles, verticalTabStyles } from "../common/Utils";
 import ApplicationsApproved from "./ApplicationsApproved";
 import ApplicationsReceived from "./ApplicationsReceived";
 import ApplicationsRejected from "./ApplicationsRejected";
 import FundContract from "./FundContract";
 import ReclaimFunds from "./ReclaimFunds";
 import ViewFundGrantees from "./ViewFundGrantees";
-import ViewRoundResults from "./ViewRoundResults";
+import ViewRoundResults from "./ViewRoundResults/ViewRoundResults";
+import ViewRoundSettings from "./ViewRoundSettings";
 import ViewRoundStats from "./ViewRoundStats";
 
 export default function ViewRoundPage() {
   datadogLogs.logger.info("====> Route: /round/:id");
   datadogLogs.logger.info(`====> URL: ${window.location.href}`);
-  const { id } = useParams();
+
+  const { id } = useParams() as { id: string };
   const { address, chain } = useWallet();
 
-  const { round, fetchRoundStatus, error } = useRoundById(id?.toLowerCase());
-  const isRoundsFetched =
+  const { round, fetchRoundStatus, error } = useRoundById(id.toLowerCase());
+  const isRoundFetched =
     fetchRoundStatus == ProgressStatus.IS_SUCCESS && !error;
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const { applications } = useApplicationByRoundId(id!);
+  const { applications } = useApplicationByRoundId(id);
 
-  const [roundExists, setRoundExists] = useState(true);
-  const [hasAccess, setHasAccess] = useState(true);
+  const debugModeEnabled = useDebugMode();
+  const hasAccess =
+    debugModeEnabled ||
+    (round
+      ? round?.operatorWallets?.includes(address.toLowerCase() ?? "")
+      : true);
 
-  const tabStyles = (selected: boolean) =>
-    selected
-      ? "whitespace-nowrap py-4 px-1 text-sm outline-none"
-      : "text-grey-400 hover:text-gray-700 whitespace-nowrap py-4 px-1 font-medium text-sm";
-
-  useEffect(() => {
-    if (isRoundsFetched) {
-      setRoundExists(!!round);
-
-      if (round) {
-        /* During development, give frontend access to all rounds */
-        if (process.env.REACT_APP_IGNORE_FRONTEND_CHECKS) {
-          setHasAccess(true);
-          return;
-        }
-        round.operatorWallets?.includes(address?.toLowerCase())
-          ? setHasAccess(true)
-          : setHasAccess(false);
-      } else {
-        setHasAccess(true);
-      }
-    }
-  }, [isRoundsFetched, round, address]);
+  const roundNotFound = fetchRoundStatus === ProgressStatus.IS_ERROR;
 
   return (
     <>
-      {!roundExists && <NotFoundPage />}
+      {roundNotFound && <NotFoundPage />}
       {!hasAccess && <AccessDenied />}
-      {roundExists && hasAccess && (
+      {round && hasAccess && (
         <>
           <Navbar />
           <div className="flex flex-col w-screen mx-0">
@@ -134,7 +119,11 @@ export default function ViewRoundPage() {
                       className="flex flex-col h-max"
                       data-testid="side-nav-bar"
                     >
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -153,7 +142,11 @@ export default function ViewRoundPage() {
                           </div>
                         )}
                       </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -172,7 +165,36 @@ export default function ViewRoundPage() {
                           </div>
                         )}
                       </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
+                        {({ selected }) => (
+                          <div
+                            className={
+                              selected
+                                ? "text-black-500 flex flex-row"
+                                : "flex flex-row"
+                            }
+                          >
+                            <AdjustmentsIcon className="h-6 w-6 mr-2" />
+                            <span
+                              className="mt-0.5"
+                              data-testid="round-settings"
+                            >
+                              Round Settings
+                            </span>
+                          </div>
+                        )}
+                      </Tab>
+
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -188,7 +210,11 @@ export default function ViewRoundPage() {
                           </div>
                         )}
                       </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -207,7 +233,11 @@ export default function ViewRoundPage() {
                           </div>
                         )}
                       </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -226,7 +256,11 @@ export default function ViewRoundPage() {
                           </div>
                         )}
                       </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -251,7 +285,7 @@ export default function ViewRoundPage() {
                     <Tab.Panel>
                       <GrantApplications
                         applications={applications}
-                        isRoundsFetched={isRoundsFetched}
+                        isRoundsFetched={isRoundFetched}
                         fetchRoundStatus={fetchRoundStatus}
                         chainId={`${chain.id}`}
                         roundId={id}
@@ -261,14 +295,13 @@ export default function ViewRoundPage() {
                       <FundContract round={round} roundId={id} />
                     </Tab.Panel>
                     <Tab.Panel>
+                      <ViewRoundSettings id={round?.id} />
+                    </Tab.Panel>
+                    <Tab.Panel>
                       <ViewRoundStats />
                     </Tab.Panel>
                     <Tab.Panel>
-                      <ViewRoundResults
-                        round={round}
-                        chainId={chain.id}
-                        roundId={id}
-                      />
+                      <ViewRoundResults />
                     </Tab.Panel>
                     <Tab.Panel>
                       <ViewFundGrantees
@@ -327,11 +360,6 @@ function GrantApplications(props: {
   font-normal
 `;
 
-  const tabStyles = (selected: boolean) =>
-    selected
-      ? "border-violet-500 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm outline-none"
-      : "border-transparent text-grey-400 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm";
-
   return (
     <div>
       {props.isRoundsFetched && (
@@ -341,7 +369,11 @@ function GrantApplications(props: {
               <div className="justify-end grow relative">
                 <Tab.List className="border-b mb-6 flex items-center justify-between">
                   <div className="space-x-8">
-                    <Tab className={({ selected }) => tabStyles(selected)}>
+                    <Tab
+                      className={({ selected }) =>
+                        horizontalTabStyles(selected)
+                      }
+                    >
                       {({ selected }) => (
                         <div className={selected ? "text-violet-500" : ""}>
                           Received
@@ -356,7 +388,11 @@ function GrantApplications(props: {
                         </div>
                       )}
                     </Tab>
-                    <Tab className={({ selected }) => tabStyles(selected)}>
+                    <Tab
+                      className={({ selected }) =>
+                        horizontalTabStyles(selected)
+                      }
+                    >
                       {({ selected }) => (
                         <div className={selected ? "text-violet-500" : ""}>
                           Approved
@@ -371,7 +407,11 @@ function GrantApplications(props: {
                         </div>
                       )}
                     </Tab>
-                    <Tab className={({ selected }) => tabStyles(selected)}>
+                    <Tab
+                      className={({ selected }) =>
+                        horizontalTabStyles(selected)
+                      }
+                    >
                       {({ selected }) => (
                         <div className={selected ? "text-violet-500" : ""}>
                           Rejected
@@ -468,9 +508,11 @@ function ApplicationOpenDateRange(props: { startTime?: Date; endTime?: Date }) {
       <p className="text-sm mr-2 text-grey-400">Applications:</p>
       <div>
         <p className="text-sm">
-          <span>{(startTime && getUTCDate(startTime)) || "..."}</span>
+          <span>
+            {(startTime && formatUTCDateAsISOString(startTime)) || "..."}
+          </span>
           <span className="mx-2">-</span>
-          <span>{(endTime && getUTCDate(endTime)) || "..."}</span>
+          <span>{(endTime && formatUTCDateAsISOString(endTime)) || "..."}</span>
         </p>
         <p className="flex justify-center items-center text-sm text-grey-400">
           <span>({(startTime && getUTCTime(startTime)) || "..."})</span>
@@ -491,9 +533,11 @@ function RoundOpenDateRange(props: { startTime?: Date; endTime?: Date }) {
       <p className="text-sm mr-2 text-grey-400">Round:</p>
       <div>
         <p className="flex justify-center items-center text-sm">
-          <span>{(startTime && getUTCDate(startTime)) || "..."}</span>
+          <span>
+            {(startTime && formatUTCDateAsISOString(startTime)) || "..."}
+          </span>
           <span className="mx-2">-</span>
-          <span>{(endTime && getUTCDate(endTime)) || "..."}</span>
+          <span>{(endTime && formatUTCDateAsISOString(endTime)) || "..."}</span>
         </p>
         <p className="flex justify-center items-center text-sm text-grey-400">
           <span>({(startTime && getUTCTime(startTime)) || "..."})</span>

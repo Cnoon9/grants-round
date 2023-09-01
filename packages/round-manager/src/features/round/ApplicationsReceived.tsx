@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { InboxInIcon as NoApplicationsForRoundIcon } from "@heroicons/react/outline";
-import { Spinner } from "../common/Spinner";
+import { utils } from "ethers";
+import {
+  InboxInIcon as NoApplicationsForRoundIcon,
+  DownloadIcon,
+} from "@heroicons/react/outline";
+import { Spinner, LoadingRing } from "../common/Spinner";
 import {
   BasicCard,
   CardContent,
@@ -34,9 +38,39 @@ import ProgressModal from "../common/ProgressModal";
 import { errorModalDelayMs } from "../../constants";
 import ErrorModal from "../common/ErrorModal";
 import { renderToPlainText } from "common";
+import { useWallet } from "../common/Auth";
+import { roundApplicationsToCSV } from "../api/exports";
+
+async function exportAndDownloadCSV(
+  roundId: string,
+  chainId: number,
+  chainName: string
+) {
+  const csv = await roundApplicationsToCSV(roundId, chainId, chainName);
+
+  // create a download link and click it
+  const outputBlob = new Blob([csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const link = document.createElement("a");
+
+  try {
+    const dataUrl = URL.createObjectURL(outputBlob);
+    link.setAttribute("href", dataUrl);
+    link.setAttribute("download", `applications-${roundId}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+  } finally {
+    document.body.removeChild(link);
+  }
+}
 
 export default function ApplicationsReceived() {
   const { id } = useParams();
+  const { chain } = useWallet();
+
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const { applications, isLoading } = useApplicationByRoundId(id!);
   const pendingApplications =
@@ -49,6 +83,7 @@ export default function ApplicationsReceived() {
   const [openProgressModal, setOpenProgressModal] = useState(false);
   const [openErrorModal, setOpenErrorModal] = useState(false);
   const [selected, setSelected] = useState<GrantApplication[]>([]);
+  const [isCsvExportLoading, setIsCsvExportLoading] = useState(false);
 
   const {
     bulkUpdateGrantApplications,
@@ -154,21 +189,64 @@ export default function ApplicationsReceived() {
     }
   };
 
+  async function handleExportCsvClick(
+    roundId: string,
+    chainId: number,
+    chainName: string
+  ) {
+    try {
+      setIsCsvExportLoading(true);
+      await exportAndDownloadCSV(roundId, chainId, chainName);
+    } catch (e) {
+      datadogLogs.logger.error(
+        `error: exportApplicationCsv - ${e}, id: ${roundId}`
+      );
+      console.error("exportApplicationCsv", e);
+    } finally {
+      setIsCsvExportLoading(false);
+    }
+  }
+
   return (
     <div>
-      {pendingApplications && pendingApplications.length > 0 && (
-        <div className="flex items-center justify-end mb-4">
-          <span className="text-grey-400 text-sm mr-6">
-            Save in gas fees by approving/rejecting multiple applications at
-            once.
-          </span>
-          {bulkSelect ? (
-            <Cancel onClick={() => setBulkSelect(false)} />
-          ) : (
-            <Select onClick={() => setBulkSelect(true)} />
-          )}
-        </div>
-      )}
+      <div className="flex items-center mb-4">
+        {id && applications && applications.length > 0 && (
+          <Button
+            type="button"
+            $variant="outline"
+            className="text-xs px-3 py-1 inline-block"
+            disabled={isCsvExportLoading}
+            onClick={() =>
+              handleExportCsvClick(utils.getAddress(id), chain.id, chain.name)
+            }
+          >
+            {isCsvExportLoading ? (
+              <>
+                <LoadingRing className="animate-spin w-3 h-3 inline-block mr-2 -mt-0.5" />
+                <span className="text-grey-400">Exporting...</span>
+              </>
+            ) : (
+              <>
+                <DownloadIcon className="w-4 h-4 inline -mt-0.5 mr-1" />
+                <span>CSV</span>
+              </>
+            )}
+          </Button>
+        )}
+        {pendingApplications && pendingApplications.length > 0 && (
+          <div className="flex items-center justify-end ml-auto">
+            <span className="text-grey-400 text-sm mr-6">
+              Save in gas fees by approving/rejecting multiple applications at
+              once.
+            </span>
+            {bulkSelect ? (
+              <Cancel onClick={() => setBulkSelect(false)} />
+            ) : (
+              <Select onClick={() => setBulkSelect(true)} />
+            )}
+          </div>
+        )}
+      </div>
       <CardsContainer>
         {!isLoading &&
           pendingApplications?.map((application, index) => (

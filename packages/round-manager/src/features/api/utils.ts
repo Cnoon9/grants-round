@@ -1,48 +1,50 @@
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { BigNumber, ethers } from "ethers";
-import { useMemo, useState } from "react";
 import {
   ApplicationMetadata,
-  InputType,
   IPFSObject,
+  InputType,
   MatchingStatsData,
   Program,
 } from "./types";
-
-export enum ChainId {
-  MAINNET = 1,
-  GOERLI_CHAIN_ID = 5,
-  OPTIMISM_MAINNET_CHAIN_ID = 10,
-  FANTOM_MAINNET_CHAIN_ID = 250,
-  FANTOM_TESTNET_CHAIN_ID = 4002,
-}
+import { ChainId, RedstoneTokenIds } from "common";
 
 // NB: number keys are coerced into strings for JS object keys
-export const CHAINS: Record<number, Program["chain"]> = {
+export const CHAINS: Record<ChainId, Program["chain"]> = {
   [ChainId.MAINNET]: {
     id: ChainId.MAINNET,
     name: "Mainnet", // TODO get canonical network names
-    logo: "./logos/ethereum-eth-logo.svg",
+    logo: "/logos/ethereum-eth-logo.svg",
   },
   [ChainId.GOERLI_CHAIN_ID]: {
     id: ChainId.GOERLI_CHAIN_ID,
     name: "Goerli", // TODO get canonical network names
-    logo: "./logos/ethereum-eth-logo.svg",
+    logo: "/logos/ethereum-eth-logo.svg",
   },
   [ChainId.OPTIMISM_MAINNET_CHAIN_ID]: {
     id: ChainId.OPTIMISM_MAINNET_CHAIN_ID,
     name: "Optimism",
-    logo: "./logos/optimism-logo.svg",
+    logo: "/logos/optimism-logo.svg",
   },
   [ChainId.FANTOM_MAINNET_CHAIN_ID]: {
     id: ChainId.FANTOM_MAINNET_CHAIN_ID,
     name: "Fantom",
-    logo: "./logos/fantom-logo.svg",
+    logo: "/logos/fantom-logo.svg",
   },
   [ChainId.FANTOM_TESTNET_CHAIN_ID]: {
     id: ChainId.FANTOM_TESTNET_CHAIN_ID,
     name: "Fantom Testnet",
-    logo: "./logos/fantom-logo.svg",
+    logo: "/logos/fantom-logo.svg",
+  },
+  [ChainId.PGN_TESTNET]: {
+    id: ChainId.PGN_TESTNET,
+    name: "PGN Testnet",
+    logo: "/logos/pgn-logo.svg",
+  },
+  [ChainId.PGN]: {
+    id: ChainId.PGN_TESTNET,
+    name: "PGN",
+    logo: "/logos/pgn-logo.svg",
   },
 };
 
@@ -52,7 +54,7 @@ export type PayoutToken = {
   address: string;
   logo?: string;
   default?: boolean; // TODO: this is only used to provide the initial placeholder item, look for better solution
-  coingeckoId?: string;
+  redstoneTokenId?: string;
   decimal: number;
 };
 
@@ -63,125 +65,178 @@ export type SupportType = {
 };
 
 export const TokenNamesAndLogos: Record<string, string> = {
-  FTM: "./logos/fantom-logo.svg",
-  BUSD: "./logos/busd-logo.svg",
-  DAI: "./logos/dai-logo.svg",
-  ETH: "./logos/ethereum-eth-logo.svg",
+  FTM: "/logos/fantom-logo.svg",
+  BUSD: "/logos/busd-logo.svg",
+  DAI: "/logos/dai-logo.svg",
+  ETH: "/logos/ethereum-eth-logo.svg",
+  OP: "/logos/optimism-logo.svg",
 };
 
-export const TokenAndCoinGeckoIds: Record<string, string> = {
-  FTM: "fantom",
-  BUSD: "binance-usd",
-  DAI: "dai",
-  ETH: "ethereum",
-};
-
-export const payoutTokens: PayoutToken[] = [
+const MAINNET_TOKENS: PayoutToken[] = [
   {
     name: "DAI",
     chainId: ChainId.MAINNET,
     address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-    logo: TokenNamesAndLogos["DAI"],
-    coingeckoId: TokenAndCoinGeckoIds["DAI"],
     decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
   },
   {
     name: "ETH",
     chainId: ChainId.MAINNET,
     address: ethers.constants.AddressZero,
-    logo: TokenNamesAndLogos["ETH"],
-    coingeckoId: TokenAndCoinGeckoIds["ETH"],
     decimal: 18,
+    logo: TokenNamesAndLogos["ETH"],
+    redstoneTokenId: RedstoneTokenIds["ETH"],
   },
+];
+
+const OPTIMISM_MAINNET_TOKENS: PayoutToken[] = [
   {
     name: "DAI",
     chainId: ChainId.OPTIMISM_MAINNET_CHAIN_ID,
     address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-    logo: TokenNamesAndLogos["DAI"],
-    coingeckoId: TokenAndCoinGeckoIds["DAI"],
     decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
   },
   {
     name: "ETH",
     chainId: ChainId.OPTIMISM_MAINNET_CHAIN_ID,
     address: ethers.constants.AddressZero,
-    logo: TokenNamesAndLogos["ETH"],
-    coingeckoId: TokenAndCoinGeckoIds["ETH"],
     decimal: 18,
+    logo: TokenNamesAndLogos["ETH"],
+    redstoneTokenId: RedstoneTokenIds["ETH"],
   },
+];
+
+const FANTOM_MAINNET_TOKENS: PayoutToken[] = [
   {
     name: "WFTM",
     chainId: ChainId.FANTOM_MAINNET_CHAIN_ID,
     address: "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
-    logo: TokenNamesAndLogos["FTM"],
-    coingeckoId: TokenAndCoinGeckoIds["FTM"],
     decimal: 18,
+    logo: TokenNamesAndLogos["FTM"],
+    redstoneTokenId: RedstoneTokenIds["FTM"],
   },
   {
     name: "FTM",
     chainId: ChainId.FANTOM_MAINNET_CHAIN_ID,
     address: ethers.constants.AddressZero,
-    logo: TokenNamesAndLogos["FTM"],
-    coingeckoId: TokenAndCoinGeckoIds["FTM"],
     decimal: 18,
+    logo: TokenNamesAndLogos["FTM"],
+    redstoneTokenId: RedstoneTokenIds["FTM"],
   },
   {
     name: "BUSD",
     chainId: ChainId.FANTOM_MAINNET_CHAIN_ID,
     address: "0xC931f61B1534EB21D8c11B24f3f5Ab2471d4aB50",
-    logo: TokenNamesAndLogos["BUSD"],
-    coingeckoId: TokenAndCoinGeckoIds["BUSD"],
     decimal: 18,
+    logo: TokenNamesAndLogos["BUSD"],
+    redstoneTokenId: RedstoneTokenIds["BUSD"],
   },
   {
     name: "DAI",
     chainId: ChainId.FANTOM_MAINNET_CHAIN_ID,
     address: "0x8d11ec38a3eb5e956b052f67da8bdc9bef8abf3e",
-    logo: TokenNamesAndLogos["DAI"],
-    coingeckoId: TokenAndCoinGeckoIds["DAI"],
     decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
   },
   {
-    name: "DAI",
-    chainId: ChainId.FANTOM_TESTNET_CHAIN_ID,
-    address: "0xEdE59D58d9B8061Ff7D22E629AB2afa01af496f4",
-    logo: TokenNamesAndLogos["DAI"],
-    coingeckoId: TokenAndCoinGeckoIds["DAI"],
+    name: "GcV",
+    chainId: ChainId.FANTOM_MAINNET_CHAIN_ID,
+    address: "0x83791638da5EB2fAa432aff1c65fbA47c5D29510",
     decimal: 18,
+    logo: TokenNamesAndLogos["GcV"],
+    redstoneTokenId: RedstoneTokenIds["DAI"], // We use DAI for the price
   },
+];
+
+const GOERLI_TESTNET_TOKENS: PayoutToken[] = [
   {
     name: "BUSD",
     chainId: ChainId.GOERLI_CHAIN_ID,
     address: "0xa7c3bf25ffea8605b516cf878b7435fe1768c89b",
-    logo: TokenNamesAndLogos["BUSD"],
-    coingeckoId: TokenAndCoinGeckoIds["BUSD"],
     decimal: 18,
+    logo: TokenNamesAndLogos["BUSD"],
+    redstoneTokenId: RedstoneTokenIds["BUSD"],
   },
   {
     name: "DAI",
     chainId: ChainId.GOERLI_CHAIN_ID,
     address: "0x11fE4B6AE13d2a6055C8D9cF65c55bac32B5d844",
-    logo: TokenNamesAndLogos["DAI"],
-    coingeckoId: TokenAndCoinGeckoIds["DAI"],
     decimal: 18,
-  },
-  {
-    name: "LOLG",
-    chainId: ChainId.GOERLI_CHAIN_ID,
-    address: "0x7f329D36FeA6b3AD10E6e36f2728e7e6788a938D",
     logo: TokenNamesAndLogos["DAI"],
-    coingeckoId: TokenAndCoinGeckoIds["DAI"],
-    decimal: 18,
+    redstoneTokenId: RedstoneTokenIds["DAI"],
   },
   {
     name: "ETH",
     chainId: ChainId.GOERLI_CHAIN_ID,
     address: ethers.constants.AddressZero,
+    decimal: 18,
     logo: TokenNamesAndLogos["ETH"],
-    coingeckoId: TokenAndCoinGeckoIds["ETH"],
+    redstoneTokenId: RedstoneTokenIds["ETH"],
+  },
+];
+
+const FANTOM_TESTNET_TOKENS: PayoutToken[] = [
+  {
+    name: "DAI",
+    chainId: ChainId.FANTOM_TESTNET_CHAIN_ID,
+    address: "0xEdE59D58d9B8061Ff7D22E629AB2afa01af496f4",
+    decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
+  },
+  {
+    name: "FTM",
+    chainId: ChainId.FANTOM_TESTNET_CHAIN_ID,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["FTM"],
+    redstoneTokenId: RedstoneTokenIds["FTM"],
+  },
+];
+
+const PGN_TESTNET_TOKENS: PayoutToken[] = [
+  {
+    name: "TEST",
+    chainId: ChainId.PGN_TESTNET,
+    address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    logo: TokenNamesAndLogos["DAI"],
+    decimal: 18,
+  },
+  {
+    name: "ETH",
+    chainId: ChainId.PGN_TESTNET,
+    address: ethers.constants.AddressZero,
+    logo: TokenNamesAndLogos["ETH"],
     decimal: 18,
   },
 ];
+
+const PGN_MAINNET_TOKENS: PayoutToken[] = [
+  {
+    name: "ETH",
+    chainId: ChainId.PGN,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["ETH"],
+    redstoneTokenId: RedstoneTokenIds["ETH"],
+  },
+];
+
+export const payoutTokens = [
+  ...MAINNET_TOKENS,
+  ...OPTIMISM_MAINNET_TOKENS,
+  ...FANTOM_MAINNET_TOKENS,
+  ...GOERLI_TESTNET_TOKENS,
+  ...FANTOM_TESTNET_TOKENS,
+  ...PGN_TESTNET_TOKENS,
+  ...PGN_MAINNET_TOKENS,
+];
+
 /*TODO: merge this and the above into one list / function*/
 export const getPayoutTokenOptions = (chainId: ChainId): PayoutToken[] => {
   switch (chainId) {
@@ -264,6 +319,26 @@ export const getPayoutTokenOptions = (chainId: ChainId): PayoutToken[] => {
         },
       ];
     }
+    case ChainId.PGN_TESTNET:
+      return [
+        {
+          name: "TEST",
+          chainId: ChainId.PGN_TESTNET,
+          address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          logo: TokenNamesAndLogos["DAI"],
+          decimal: 18,
+        },
+        {
+          name: "ETH",
+          chainId: ChainId.PGN_TESTNET,
+          address: ethers.constants.AddressZero,
+          logo: TokenNamesAndLogos["ETH"],
+          decimal: 18,
+        },
+      ];
+    case ChainId.PGN:
+      return PGN_MAINNET_TOKENS;
+
     case ChainId.GOERLI_CHAIN_ID:
     default: {
       return [
@@ -317,7 +392,7 @@ export const fetchFromIPFS = (cid: string) => {
  * @param obj - the data to be pinned on IPFS
  * @returns the unique content identifier that points to the data
  */
-export const pinToIPFS = (obj: IPFSObject) => {
+export const pinToIPFS = (obj: IPFSObject): Promise<{ IpfsHash: string }> => {
   const params = {
     method: "POST",
     headers: {
@@ -401,6 +476,7 @@ export interface ApplicationSchema {
  * This function generates the round application schema to be stored in a decentralized storage
  *
  * @param questions - The metadata of a round application
+ * @param requirements
  * @returns The application schema
  */
 export const generateApplicationSchema = (
@@ -426,105 +502,11 @@ export const generateApplicationSchema = (
   return schema;
 };
 
-/* We can safely suppress the eslint warning here, since JSON.stringify accepts any*/
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function saveObjectAsJson(filename: string, dataObjToWrite: any) {
-  const blob = new Blob([JSON.stringify(dataObjToWrite)], {
-    type: "text/json",
-  });
-  const link = document.createElement("a");
-
-  link.download = filename;
-  link.href = window.URL.createObjectURL(blob);
-  link.dataset.downloadurl = ["text/json", link.download, link.href].join(":");
-
-  const evt = new MouseEvent("click", {
-    view: window,
-    bubbles: true,
-    cancelable: true,
-  });
-
-  link.dispatchEvent(evt);
-  link.remove();
-}
-
-// Checks if tests are being run jest
-export const isJestRunning = () => process.env.JEST_WORKER_ID !== undefined;
-
-export const prefixZero = (i: number): string =>
-  i < 10 ? "0" + i : i.toString();
-
-export const getUTCDate = (date: Date): string => {
-  const utcDate = [
-    prefixZero(date.getUTCDate()),
-    prefixZero(date.getUTCMonth() + 1),
-    prefixZero(date.getUTCFullYear()),
-  ];
-
-  return utcDate.join("/");
-};
-
-export const getUTCTime = (date: Date): string => {
-  const utcTime = [
-    prefixZero(date.getUTCHours()),
-    prefixZero(date.getUTCMinutes()),
-  ];
-
-  return utcTime.join(":") + " UTC";
-};
-
 export function typeToText(s: string) {
   if (s == "address") return "Wallet address";
   if (s == "checkbox") return "Checkboxes";
   return (s.charAt(0).toUpperCase() + s.slice(1)).replace("-", " ");
 }
-
-export const useTokenPrice = (tokenId: string | undefined) => {
-  const [tokenPrice, setTokenPrice] = useState<number>();
-  const [error, setError] = useState<Response | undefined>();
-  const [loading, setLoading] = useState(false);
-
-  useMemo(() => {
-    setLoading(true);
-    const tokenPriceEndpoint = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`;
-    fetch(tokenPriceEndpoint, {
-      headers: {
-        method: "GET",
-        Accept: "application/json",
-      },
-      mode: "no-cors",
-    })
-      .then((resp) => {
-        if (resp.ok) {
-          return resp.json();
-        } else {
-          setError(resp);
-          setLoading(false);
-        }
-      })
-      .then((data) => {
-        if (data) {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const { usd } = data[tokenId!];
-          setTokenPrice(usd);
-        } else {
-          setError(data.message);
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.log("error fetching token price", { err });
-        setError(err);
-        setLoading(false);
-      });
-  }, [tokenId]);
-
-  return {
-    data: tokenPrice,
-    error,
-    loading,
-  };
-};
 
 /**
  * Fetch link to contract on Etherscan or other explorer

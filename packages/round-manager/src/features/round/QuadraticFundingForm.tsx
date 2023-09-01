@@ -1,35 +1,35 @@
-import { FormStepper } from "../common/FormStepper";
-import { Fragment, useContext, useState } from "react";
-import { FormContext } from "../common/FormWizard";
-import {
-  Control,
-  FieldErrors,
-  SubmitHandler,
-  useController,
-  useForm,
-  UseFormRegisterReturn,
-  useWatch,
-} from "react-hook-form";
-import { Round } from "../api/types";
-import { Input } from "common/src/styles";
+import { Listbox, RadioGroup, Transition } from "@headlessui/react";
 import {
   CheckIcon,
   InformationCircleIcon,
   SelectorIcon,
 } from "@heroicons/react/solid";
 import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
-import { Listbox, RadioGroup, Transition } from "@headlessui/react";
 import { classNames } from "common";
-import { PayoutToken, getPayoutTokenOptions } from "../api/utils";
+import { Input } from "common/src/styles";
+import _ from "lodash";
+import { Fragment, useContext, useState } from "react";
+import {
+  Control,
+  FieldErrors,
+  SubmitHandler,
+  UseFormRegisterReturn,
+  useController,
+  useForm,
+  useWatch,
+} from "react-hook-form";
 import ReactTooltip from "react-tooltip";
+import * as yup from "yup";
+import { Round } from "../api/types";
+import { PayoutToken, getPayoutTokenOptions } from "../api/utils";
 import { useWallet } from "../common/Auth";
-import _ from 'lodash';
+import { FormStepper } from "../common/FormStepper";
+import { FormContext } from "../common/FormWizard";
 interface QuadraticFundingFormProps {
   stepper: typeof FormStepper;
 }
 
-const ValidationSchema = yup.object().shape({
+export const FundingValidationSchema = yup.object().shape({
   roundMetadata: yup.object().shape({
     quadraticFundingConfig: yup.object({
       matchingFundsAvailable: yup
@@ -119,7 +119,7 @@ export default function QuadraticFundingForm(props: QuadraticFundingFormProps) {
         quadraticFundingConfig: initialQuadraticFundingConfig,
       },
     },
-    resolver: yupResolver(ValidationSchema),
+    resolver: yupResolver(FundingValidationSchema),
   });
 
   const FormStepper = props.stepper;
@@ -234,8 +234,8 @@ export default function QuadraticFundingForm(props: QuadraticFundingFormProps) {
               <p className="text-grey-400 mb-2 mt-1 text-sm">
                 Ensure that project supporters are not bots or sybil with
                 Gitcoin Passport. Learn more about Gitcoin Passport{" "}
-                <a 
-                  href="https://docs.passport.gitcoin.co/overview/readme" 
+                <a
+                  href="https://docs.passport.gitcoin.co/overview/readme"
                   className="text-violet-300"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -323,7 +323,7 @@ function PayoutTokenButton(props: {
   );
 }
 
-function PayoutTokenInformation() {
+export function PayoutTokenInformation() {
   return (
     <>
       <InformationCircleIcon
@@ -762,7 +762,7 @@ function MinDonationThreshold(props: {
               effect="solid"
             >
               <p className="text-xs">
-                Set a minimum amount for each <br /> 
+                Set a minimum amount for each <br />
                 donation to be eligible for matching.
               </p>
             </ReactTooltip>

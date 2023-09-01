@@ -1,37 +1,38 @@
 import { datadogLogs } from "@datadog/browser-logs";
-import { Link, useParams } from "react-router-dom";
-import { useRoundById } from "../../context/RoundContext";
-import { ProjectBanner } from "../common/ProjectBanner";
-import DefaultLogoImage from "../../assets/default_logo.png";
+import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
 import { PassportVerifier } from "@gitcoinco/passport-sdk-verifier";
 import {
+  BoltIcon,
+  GlobeAltIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/solid";
+import { Client } from "allo-indexer-client";
+import { formatDateWithOrdinal, renderToHTML } from "common";
+import { Button } from "common/src/styles";
+import { formatDistanceToNowStrict } from "date-fns";
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import useSWR from "swr";
+import { useEnsName } from "wagmi";
+import DefaultLogoImage from "../../assets/default_logo.png";
+import { ReactComponent as GithubIcon } from "../../assets/github-logo.svg";
+import { ReactComponent as TwitterIcon } from "../../assets/twitter-logo.svg";
+import { useRoundById } from "../../context/RoundContext";
+import {
+  CartProject,
   GrantApplicationFormAnswer,
   Project,
   ProjectCredentials,
   ProjectMetadata,
 } from "../api/types";
-import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
-import {
-  BoltIcon,
-  ChevronLeftIcon,
-  GlobeAltIcon,
-  ShieldCheckIcon,
-} from "@heroicons/react/24/solid";
-import { ReactComponent as TwitterIcon } from "../../assets/twitter-logo.svg";
-import { ReactComponent as GithubIcon } from "../../assets/github-logo.svg";
-import { Button } from "common/src/styles";
-import { useCart } from "../../context/CartContext";
+import Footer from "common/src/components/Footer";
 import Navbar from "../common/Navbar";
-import React, { useEffect, useState } from "react";
-import Footer from "../common/Footer";
-import useSWR from "swr";
-import { formatDistanceToNowStrict } from "date-fns";
-import RoundEndedBanner from "../common/RoundEndedBanner";
 import PassportBanner from "../common/PassportBanner";
-import { formatDateWithOrdinal } from "common";
-import { renderToHTML } from "common";
-import { Client, Application } from "allo-indexer-client";
-import { utils } from "ethers";
+import { ProjectBanner } from "../common/ProjectBanner";
+import RoundEndedBanner from "../common/RoundEndedBanner";
+import Breadcrumb, { BreadcrumbItem } from "../common/Breadcrumb";
+import { useCartStorage } from "../../store";
+import { getAddress } from "viem";
 
 const CalendarIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
@@ -83,34 +84,70 @@ export default function ViewProjectDetails() {
   const currentTime = new Date();
   const isBeforeRoundEndDate = round && round.roundEndTime > currentTime;
   const isAfterRoundEndDate = round && round.roundEndTime <= currentTime;
-  const [cart, handleAddProjectsToCart, handleRemoveProjectsFromCart] =
-    useCart();
+  const { projects, add, remove } = useCartStorage();
 
-  const isAlreadyInCart = cart.some(
+  const isAlreadyInCart = projects.some(
     (project) => project.grantApplicationId === applicationId
   );
 
+  /*TODO: projectToRender can be undefined, casting will hide that condition.*/
+  const cartProject = projectToRender as CartProject;
+
+  if (cartProject !== undefined) {
+    /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion */
+    cartProject.roundId = roundId!;
+    /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion */
+    cartProject.chainId = Number(chainId!);
+  }
+
+  const breadCrumbs = [
+    {
+      name: "Explorer Home",
+      path: "/",
+    },
+    {
+      name: round?.roundMetadata?.name,
+      path: `/round/${chainId}/${roundId}`,
+    },
+    {
+      name: "Project Details",
+      path: `/round/${chainId}/${roundId}/${applicationId}`,
+    },
+  ] as BreadcrumbItem[];
+
   return (
     <>
-      <Navbar roundUrlPath={`/round/${chainId}/${roundId}`} />
-      {isBeforeRoundEndDate && <PassportBanner />}
+      <Navbar />
+
+      {isBeforeRoundEndDate && (
+        <PassportBanner chainId={Number(chainId)} round={round} />
+      )}
       {isAfterRoundEndDate && (
         <div>
           <RoundEndedBanner />
         </div>
       )}
-      <div className="relative top-16 lg:mx-20 h-screen px-4 py-7">
-        <main>
-          <div className="flex flex-row items-center gap-3 text-sm">
-            <ChevronLeftIcon className="h-5 w-5 mt-6 mb-6" />
-            <Link to={`/round/${chainId}/${roundId}`}>
-              <span className="font-normal">Back to Grants</span>
-            </Link>
-          </div>
+      <div className="relative top-28 lg:mx-20 h-screen px-4 py-7">
+        <div className="flex flex-col pb-6" data-testid="bread-crumbs">
+          <Breadcrumb items={breadCrumbs} />
+        </div>
+        <main className={"flex flex-col items-center"}>
           {!isLoading && projectToRender && (
             <>
               <Header projectMetadata={projectToRender.projectMetadata} />
-              <div className="flex flex-col md:flex-row">
+              <div className="flex flex-col w-full md:invisible sm:-mt-[230px]">
+                <Sidebar
+                  isAlreadyInCart={isAlreadyInCart}
+                  isBeforeRoundEndDate={isBeforeRoundEndDate}
+                  removeFromCart={() => {
+                    remove(cartProject.grantApplicationId);
+                  }}
+                  addToCart={() => {
+                    add(cartProject);
+                  }}
+                />
+              </div>
+              <div className="flex flex-col md:flex-row xl:max-w-[1800px] w-full">
                 <div className="grow">
                   <div>
                     <ProjectTitle
@@ -129,20 +166,25 @@ export default function ViewProjectDetails() {
                     />
                   </div>
                 </div>
-                <Sidebar
-                  isAlreadyInCart={isAlreadyInCart}
-                  removeFromCart={() => {
-                    handleRemoveProjectsFromCart([projectToRender]);
-                  }}
-                  addToCart={() => {
-                    handleAddProjectsToCart([projectToRender]);
-                  }}
-                />
+                <div className="md:visible invisible  min-w-fit">
+                  <Sidebar
+                    isAlreadyInCart={isAlreadyInCart}
+                    isBeforeRoundEndDate={isBeforeRoundEndDate}
+                    removeFromCart={() => {
+                      remove(cartProject.grantApplicationId);
+                    }}
+                    addToCart={() => {
+                      add(cartProject);
+                    }}
+                  />
+                </div>
               </div>
             </>
           )}
         </main>
-        <Footer />
+        <div className="my-11">
+          <Footer />
+        </div>
       </div>
     </>
   );
@@ -150,10 +192,11 @@ export default function ViewProjectDetails() {
 
 function Header(props: { projectMetadata: ProjectMetadata }) {
   return (
-    <div>
+    <div className={"w-full xl:max-w-[1800px]"}>
       <ProjectBanner
         projectMetadata={props.projectMetadata}
         classNameOverride="h-32 w-full object-cover lg:h-80 rounded"
+        resizeHeight={320}
       />
       <div className="pl-4 sm:pl-6 lg:pl-8">
         <div className="-mt-12 sm:-mt-16 sm:flex sm:items-end sm:space-x-5">
@@ -192,6 +235,10 @@ function AboutProject(props: { projectToRender: Project }) {
     projectToRender.recipient.slice(0, 6) +
     "..." +
     projectToRender.recipient.slice(-4);
+  const { data: ensName } = useEnsName({
+    // @ts-expect-error Temp until viem
+    address: projectToRender.recipient ?? "",
+  });
   const projectWebsite = projectToRender.projectMetadata.website;
   const projectTwitter = projectToRender.projectMetadata.projectTwitter;
   const userGithub = projectToRender.projectMetadata.userGithub;
@@ -252,7 +299,7 @@ function AboutProject(props: { projectToRender: Project }) {
         <span className="flex items-center mt-4 gap-1">
           <BoltIcon className="h-4 w-4 mr-1 opacity-40" />
           <DetailSummary
-            text={`${projectRecipient}`}
+            text={`${ensName ? ensName : projectRecipient}`}
             testID="project-recipient"
             sm={true}
           />
@@ -332,7 +379,9 @@ function AboutProject(props: { projectToRender: Project }) {
 }
 
 function DescriptionTitle() {
-  return <h1 className="text-2xl mt-8 font-thin text-black">About</h1>;
+  return (
+    <h1 className="text-2xl mt-8 mb-4 font-thin text-black">Description</h1>
+  );
 }
 
 function DetailSummary(props: { text: string; testID: string; sm?: boolean }) {
@@ -353,7 +402,7 @@ function Detail(props: { text: string; testID: string }) {
       dangerouslySetInnerHTML={{
         __html: renderToHTML(props.text.replace(/\n/g, "\n\n")),
       }}
-      className="text-md prose prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-a:text-blue-600"
+      className="text-md prose prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-a:text-blue-600 max-w-full"
       data-testid={props.testID}
     />
   );
@@ -434,23 +483,26 @@ export function ProjectLogo(props: {
 
 function Sidebar(props: {
   isAlreadyInCart: boolean;
+  isBeforeRoundEndDate?: boolean;
   removeFromCart: () => void;
   addToCart: () => void;
 }) {
   return (
-    <div className="mt-6 md:mt-0 self-center md:self-auto md:ml-6">
+    <div className="mt-2 md:self-auto md:ml-6">
       <ProjectStats />
-      <CartButtonToggle
-        isAlreadyInCart={props.isAlreadyInCart}
-        addToCart={props.addToCart}
-        removeFromCart={props.removeFromCart}
-      />
+      {props.isBeforeRoundEndDate && (
+        <CartButtonToggle
+          isAlreadyInCart={props.isAlreadyInCart}
+          addToCart={props.addToCart}
+          removeFromCart={props.removeFromCart}
+        />
+      )}
     </div>
   );
 }
 
 // NOTE: Consider moving this
-export function useRoundProject(
+export function useRoundApprovedApplication(
   chainId: number,
   roundId: string,
   projectId: string
@@ -458,27 +510,34 @@ export function useRoundProject(
   // use chain id and project id from url params
   const client = new Client(
     boundFetch,
-    process.env.REACT_APP_ALLO_API_ENDPOINT ?? "",
+    process.env.REACT_APP_ALLO_API_URL ?? "",
     chainId
   );
-  return useSWR([roundId, "/projects"], ([roundId]) =>
-    client
-      .getRoundApplications(utils.getAddress(roundId.toLowerCase()))
-      .then((apps: Application[]) =>
-        apps.filter((app: Application) => app.id === projectId)
-      )
-  );
+
+  return useSWR([roundId, "/projects"], async ([roundId]) => {
+    const applications = await client.getRoundApplications(
+      getAddress(roundId.toLowerCase())
+    );
+
+    return applications.find(
+      (app) => app.projectId === projectId && app.status === "APPROVED"
+    );
+  });
 }
+
 export function ProjectStats() {
   const { chainId, roundId, applicationId } = useParams();
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const { round } = useRoundById(chainId!, roundId!);
-  const projectId = applicationId?.split("-")[0] as string;
 
-  const { data: project } = useRoundProject(
+  const projectToRender = round?.approvedProjects?.find(
+    (project) => project.grantApplicationId === applicationId
+  );
+
+  const { data: application } = useRoundApprovedApplication(
     Number(chainId),
     roundId as string,
-    projectId
+    projectToRender?.projectRegistryId as string
   );
 
   const timeRemaining = round?.roundEndTime
@@ -486,13 +545,17 @@ export function ProjectStats() {
     : null;
 
   return (
-    <div className={"rounded bg-gray-50 mb-4 p-4 gap-4 flex flex-col"}>
+    <div
+      className={
+        "rounded bg-gray-50 mb-4 p-4 gap-4 grid grid-cols-3 md:flex md:flex-col"
+      }
+    >
       <div>
-        <h3>${project ? project[0].amountUSD.toFixed(2) : "-"}</h3>
+        <h3>${application?.amountUSD.toFixed(2) ?? "-"}</h3>
         <p>funding received in current round</p>
       </div>
       <div>
-        <h3>{project ? project[0].uniqueContributors : "-"}</h3>
+        <h3>{application?.uniqueContributors ?? "-"}</h3>
         <p>contributors</p>
       </div>
       <div>
@@ -525,7 +588,7 @@ function CartButtonToggle(props: {
         data-testid="remove-from-cart"
         onClick={props.removeFromCart}
         className={
-          "w-80 bg-transparent hover:bg-red-500 text-red-400 font-semibold hover:text-white py-2 px-4 border border-red-400 hover:border-transparent rounded"
+          "w-full md:w-80 bg-transparent hover:bg-red-500 text-red-400 font-semibold hover:text-white py-2 px-4 border border-red-400 hover:border-transparent rounded"
         }
       >
         Remove from Cart
@@ -540,7 +603,7 @@ function CartButtonToggle(props: {
         props.addToCart();
       }}
       className={
-        "w-80 bg-transparent hover:bg-violet-400 text-grey-900 font-semibold hover:text-white py-2 px-4 border border-violet-400 hover:border-transparent rounded"
+        "w-full md:w-80 bg-transparent hover:bg-violet-400 text-grey-900 font-semibold hover:text-white py-2 px-4 border border-violet-400 hover:border-transparent rounded"
       }
     >
       Add to Cart

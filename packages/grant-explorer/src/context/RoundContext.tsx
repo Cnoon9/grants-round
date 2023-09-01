@@ -36,7 +36,7 @@ type Dispatch = (action: Action) => void;
 
 export const initialRoundState: RoundState = {
   rounds: [],
-  isLoading: false,
+  isLoading: true,
 };
 
 export const RoundContext = createContext<
@@ -115,7 +115,7 @@ export const useRoundById = (
         (round) => round.id === roundId
       );
 
-      if (!existingRound) {
+      if (!existingRound?.token) {
         fetchRoundsById(context.dispatch, chainId, roundId);
       }
     }

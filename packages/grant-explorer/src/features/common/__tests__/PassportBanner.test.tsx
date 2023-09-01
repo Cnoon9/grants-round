@@ -3,7 +3,13 @@ import PassportBanner from "../PassportBanner";
 import { BrowserRouter } from "react-router-dom";
 import { fetchPassport } from "../../api/passport";
 import { faker } from "@faker-js/faker";
-import { mockBalance, mockNetwork, mockSigner } from "../../../test-utils";
+import {
+  makeRoundData,
+  mockBalance,
+  mockNetwork,
+  mockSigner,
+} from "../../../test-utils";
+import { Mock } from "vitest";
 
 const userAddress = faker.finance.ethereumAddress();
 
@@ -12,22 +18,26 @@ const mockAccount = {
   isConnected: false,
 };
 
-jest.mock("wagmi", () => ({
+vi.mock("wagmi", () => ({
   useAccount: () => mockAccount,
   useBalance: () => mockBalance,
   useSigner: () => mockSigner,
   useNetwork: () => mockNetwork,
 }));
 
-jest.mock("../../../features/api/passport");
+vi.mock("../../../features/api/passport");
 
 process.env.REACT_APP_PASSPORT_API_COMMUNITY_ID = "12";
 
 describe("PassportBanner", () => {
+  const mockRound = makeRoundData();
+
   describe("renders the correct banner", () => {
     it("WHEN user is not connected to passport THEN it shows the not connected banner", () => {
       mockAccount.isConnected = false;
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
       expect(screen.getByTestId("wallet-not-connected")).toBeInTheDocument();
       expect(screen.getByTestId("connect-wallet-button")).toBeInTheDocument();
     });
@@ -49,11 +59,13 @@ describe("PassportBanner", () => {
         json: () => mockJsonPromise,
       } as unknown as Response;
 
-      (fetchPassport as jest.Mock).mockResolvedValueOnce(
-        mockFetchPassportPromise
-      );
+      vitest
+        .mocked(fetchPassport)
+        .mockResolvedValueOnce(mockFetchPassportPromise);
 
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId("match-eligible")).toBeInTheDocument();
@@ -78,11 +90,11 @@ describe("PassportBanner", () => {
         json: () => mockJsonPromise,
       } as unknown as Response;
 
-      (fetchPassport as jest.Mock).mockReturnValueOnce(
-        mockFetchPassportPromise
-      );
+      vitest.mocked(fetchPassport).mockResolvedValue(mockFetchPassportPromise);
 
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId("match-ineligible")).toBeInTheDocument();
@@ -107,11 +119,11 @@ describe("PassportBanner", () => {
         json: () => mockJsonPromise,
       } as unknown as Response;
 
-      (fetchPassport as jest.Mock).mockReturnValueOnce(
-        mockFetchPassportPromise
-      );
+      vitest.mocked(fetchPassport).mockResolvedValue(mockFetchPassportPromise);
 
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
 
       expect(screen.getByTestId("loading-passport-score")).toBeInTheDocument();
     });
@@ -133,15 +145,14 @@ describe("PassportBanner", () => {
         status: 400,
       } as unknown as Response;
 
-      (fetchPassport as jest.Mock).mockReturnValueOnce(
-        mockFetchPassportPromise
-      );
+      vitest.mocked(fetchPassport).mockResolvedValue(mockFetchPassportPromise);
 
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId("invalid-passport")).toBeInTheDocument();
-        expect(screen.getByTestId("visit-passport-button")).toBeInTheDocument();
       });
     });
 
@@ -156,11 +167,11 @@ describe("PassportBanner", () => {
         status: 401,
       } as unknown as Response;
 
-      (fetchPassport as jest.Mock).mockReturnValueOnce(
-        mockFetchPassportPromise
-      );
+      vitest.mocked(fetchPassport).mockResolvedValue(mockFetchPassportPromise);
 
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
 
       await waitFor(() => {
         expect(
@@ -187,11 +198,11 @@ describe("PassportBanner", () => {
         status: 200,
       } as unknown as Response;
 
-      (fetchPassport as jest.Mock).mockReturnValueOnce(
-        mockFetchPassportPromise
-      );
+      vitest.mocked(fetchPassport).mockResolvedValue(mockFetchPassportPromise);
 
-      render(<PassportBanner />, { wrapper: BrowserRouter });
+      render(<PassportBanner chainId={5} round={mockRound} />, {
+        wrapper: BrowserRouter,
+      });
 
       await waitFor(() => {
         expect(

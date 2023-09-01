@@ -3,10 +3,8 @@ import { datadogRum } from "@datadog/browser-rum";
 import { ExclamationCircleIcon } from "@heroicons/react/20/solid";
 import {
   ExclamationTriangleIcon,
-  GlobeAltIcon,
   InformationCircleIcon,
 } from "@heroicons/react/24/solid";
-import { renderToHTML } from "common";
 import { Fragment, useEffect, useState } from "react";
 import { shallowEqual, useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
@@ -14,24 +12,15 @@ import { useNetwork } from "wagmi";
 import { ValidationError } from "yup";
 import { fetchProjectApplicationInRound } from "../../actions/projects";
 import { resetApplicationError } from "../../actions/roundApplication";
-import {
-  DefaultProjectBanner,
-  DefaultProjectLogo,
-  GithubLogo,
-  TwitterLogo,
-} from "../../assets";
 import useValidateCredential from "../../hooks/useValidateCredential";
 import { RootState } from "../../reducers";
 import { editProjectPathByID } from "../../routes";
-import colors from "../../styles/colors";
 import {
   AddressType,
   ChangeHandlers,
-  CredentialProvider,
   Metadata,
   ProjectOption,
   Round,
-  RoundApplicationQuestion,
 } from "../../types";
 import {
   RoundApplicationAnswers,
@@ -56,7 +45,7 @@ import {
   TextInput,
   TextInputAddress,
 } from "../grants/inputs";
-import Calendar from "../icons/Calendar";
+import { FullPreview } from "./FullPreview";
 
 const validation = {
   messages: [""],
@@ -67,259 +56,6 @@ const validation = {
 enum ValidationStatus {
   Invalid,
   Valid,
-}
-
-function ProjectTitle(props: { projectMetadata: Metadata }) {
-  const { projectMetadata } = props;
-  return (
-    <div className="pb-2">
-      <h1 className="text-3xl mt-6 font-thin text-black">
-        {projectMetadata.title}
-      </h1>
-    </div>
-  );
-}
-
-function DetailSummary(props: { text: string; testID: string; sm?: boolean }) {
-  const { text, testID, sm } = props;
-  return (
-    <p
-      className={`${sm ? "text-sm" : "text-base"} font-normal text-black`}
-      data-testid={testID}
-    >
-      {" "}
-      {text}{" "}
-    </p>
-  );
-}
-
-function AboutProject(props: { projectToRender: Metadata }) {
-  const { projectToRender } = props;
-
-  const { website, projectTwitter, projectGithub, userGithub } =
-    projectToRender;
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 pt-2 pb-6">
-      {website && (
-        <span className="flex items-center mt-4 gap-1">
-          <GlobeAltIcon className="h-4 w-4 mr-1 opacity-40" />
-          <a
-            href={website}
-            target="_blank"
-            rel="noreferrer"
-            className="text-base font-normal text-black"
-          >
-            <DetailSummary text={`${website}`} testID="project-website" />
-          </a>
-        </span>
-      )}
-      {projectTwitter && (
-        <span className="flex items-center mt-4 gap-1">
-          <img src={TwitterLogo} className="h-4" alt="Twitter Logo" />
-          <a
-            href={`https://twitter.com/${projectTwitter}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-base font-normal text-black"
-          >
-            <DetailSummary
-              text={`@${projectTwitter}`}
-              testID="project-twitter"
-            />
-          </a>
-        </span>
-      )}
-      {projectToRender.createdAt && (
-        <span className="flex items-center mt-4 gap-1">
-          {/* <CalendarIcon className="h-4 w-4 mr-1 opacity-80" /> */}
-          <Calendar color={colors["secondary-text"]} />
-          <DetailSummary
-            text={`${new Date(projectToRender.createdAt).toLocaleDateString(
-              "en-US",
-              {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              }
-            )}`}
-            testID="project-createdAt"
-          />
-        </span>
-      )}
-      {userGithub && (
-        <span className="flex items-center mt-4 gap-1">
-          <img src={GithubLogo} className="h-4" alt="GitHub Logo" />
-          <a
-            href={`https://github.com/${userGithub}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-base font-normal text-black"
-          >
-            <DetailSummary text={`${userGithub}`} testID="user-github" />
-          </a>
-        </span>
-      )}
-      {projectGithub && (
-        <span className="flex items-center mt-4 gap-1">
-          <img src={GithubLogo} className="h-4" alt="GitHub Logo" />
-          <a
-            href={`https://github.com/${projectGithub}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-base font-normal text-black"
-          >
-            <DetailSummary text={`${projectGithub}`} testID="project-github" />
-          </a>
-        </span>
-      )}
-    </div>
-  );
-}
-
-function FullPreview(props: {
-  project: Metadata;
-  answers: RoundApplicationAnswers;
-  questions: RoundApplicationQuestion[];
-  handleSubmitApplication: Function;
-  setPreview: Function;
-  disableSubmit: boolean;
-}) {
-  const {
-    project,
-    answers,
-    questions,
-    setPreview,
-    handleSubmitApplication,
-    disableSubmit,
-  } = props;
-  const ipfsPrefix = `${process.env.REACT_APP_PINATA_GATEWAY!}/ipfs/`;
-
-  return (
-    <>
-      <div className="relative pt-7">
-        <div>
-          <div>
-            <img
-              className="h-[120px] w-full object-cover rounded-t"
-              src={
-                project.bannerImg
-                  ? ipfsPrefix + project.bannerImg
-                  : DefaultProjectBanner
-              }
-              alt="Project Banner"
-            />
-          </div>
-          <div className="pl-4 sm:pl-6 lg:pl-8">
-            <div className="-mt-1 sm:-mt-2 sm:flex sm:items-end sm:space-x-5">
-              <div className="flex">
-                <div className="pl-4">
-                  <div className="-mt-6 sm:-mt-6 sm:flex sm:items-end sm:space-x-5">
-                    <div className="flex">
-                      <img
-                        className="h-16 w-16 rounded-full ring-4 ring-white bg-white"
-                        src={
-                          project.logoImg
-                            ? ipfsPrefix + project.logoImg
-                            : DefaultProjectLogo
-                        }
-                        alt="Project Logo"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row">
-        <div className="grow">
-          <div>
-            <ProjectTitle projectMetadata={project} />
-            <AboutProject projectToRender={project} />
-          </div>
-          <div>
-            <h1 className="text-2xl mt-8 font-thin text-black">About</h1>
-            <p
-              // eslint-disable-next-line react/no-danger
-              dangerouslySetInnerHTML={{
-                __html: renderToHTML(
-                  project.description.replace(/\n/g, "\n\n")
-                ),
-              }}
-              className="text-md prose prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-a:text-blue-600"
-            />
-
-            <div className="mt-4 border-t-2">
-              <h1 className="text-2xl mt-6 font-thin text-black">
-                Additional Details
-              </h1>
-              <div>
-                {questions.map((question: any) => {
-                  const currentAnswer = answers[question.id];
-                  const answerText = Array.isArray(currentAnswer)
-                    ? currentAnswer.join(", ")
-                    : currentAnswer || "";
-
-                  return (
-                    <div>
-                      {!question.hidden && question.type !== "project" && (
-                        <div key={question.id}>
-                          <p className="text-md mt-8 mb-3 font-semibold text-black">
-                            {question.type === "recipient"
-                              ? "Recipient"
-                              : question.title}
-                          </p>
-                          {question.type === "paragraph" ? (
-                            <p
-                              // eslint-disable-next-line react/no-danger
-                              dangerouslySetInnerHTML={{
-                                __html: renderToHTML(
-                                  answerText.toString().replace(/\n/g, "\n\n")
-                                ),
-                              }}
-                              className="text-md prose prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-a:text-blue-600"
-                            />
-                          ) : (
-                            <p className="text-base text-black">
-                              {answerText.toString().replace(/\n/g, "<br/>")}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <div className="flex justify-end">
-          <Button
-            variant={ButtonVariants.outline}
-            onClick={() => {
-              setPreview(false);
-            }}
-          >
-            Back to Editing
-          </Button>
-          <Button
-            variant={ButtonVariants.primary}
-            onClick={() => {
-              handleSubmitApplication();
-            }}
-            disabled={disableSubmit}
-          >
-            Submit
-          </Button>
-        </div>
-      </div>
-    </>
-  );
 }
 
 export default function Form({
@@ -381,13 +117,11 @@ export default function Form({
 
   const twitterCredentialValidation = useValidateCredential(
     selectedProjectMetadata?.credentials?.twitter,
-    CredentialProvider.Twitter,
     selectedProjectMetadata?.projectTwitter
   );
 
   const githubCredentialValidation = useValidateCredential(
     selectedProjectMetadata?.credentials?.github,
-    CredentialProvider.Github,
     selectedProjectMetadata?.projectGithub
   );
 
@@ -483,19 +217,22 @@ export default function Form({
   };
 
   const handleProjectInput = async (e: ChangeHandlers) => {
-    const { value } = e.target;
-    setSelectedProjectID(value);
+    const { value: projectId } = e.target;
+    setSelectedProjectID(projectId);
     setIsLoading(true);
     // don't load the project if the input is empty/blank
-    if (value === "") {
+    if (projectId === "") {
       setHasExistingApplication(false);
       setIsLoading(false);
       handleInput(e);
       return;
     }
     const { hasProjectAppliedToRound } = await fetchProjectApplicationInRound(
-      value,
-      round.address
+      projectId,
+      round.address,
+      // assume the chainID is set and we are on the same chain
+      // as the round we are applying for
+      props.chainID!
     );
     setHasExistingApplication(hasProjectAppliedToRound);
     setIsLoading(false);
@@ -603,9 +340,11 @@ export default function Form({
           project={selectedProjectMetadata!}
           answers={answers}
           questions={schema.questions}
+          preview={preview}
           setPreview={setPreview}
           handleSubmitApplication={handleSubmitApplication}
           disableSubmit={disableSubmit}
+          chainId={chainInfo?.id || 1}
         />
       )}
       <div
@@ -1072,7 +811,9 @@ export default function Form({
                   <Button
                     variant={ButtonVariants.primary}
                     disabled={!isValidProjectSelected}
-                    onClick={() => handlePreviewClick()}
+                    onClick={() => {
+                      handlePreviewClick();
+                    }}
                   >
                     Preview Application
                   </Button>
@@ -1096,13 +837,14 @@ export default function Form({
               </div>
             )}
         </form>
+        {/* TODO: this is displayed regardless of the error, e.g. when receiving a 401 from Pinata */}
         <ErrorModal
           open={showErrorModal}
           onClose={closeErrorModal}
           onRetry={handleSubmitApplicationRetry}
           title="Round Application Period Closed"
         >
-          {round.applicationsEndTime > now ? (
+          {round.applicationsEndTime < now ? (
             <div className="my-2">
               The application period for this round has closed.
             </div>

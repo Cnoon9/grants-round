@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Signer } from "@ethersproject/abstract-signer";
-import { Web3Provider } from "@ethersproject/providers";
+import { TransactionResponse, Web3Provider } from "@ethersproject/providers";
 import { graphql_fetch } from "common";
 import { BigNumber, ethers, utils } from "ethers";
 import {
@@ -13,9 +14,56 @@ import {
   MatchingStatsData,
   MetadataPointer,
   Round,
-  TransactionBlock,
 } from "./types";
 import { fetchFromIPFS, payoutTokens } from "./utils";
+
+export enum UpdateAction {
+  UPDATE_APPLICATION_META_PTR = "updateApplicationMetaPtr",
+  UPDATE_ROUND_META_PTR = "updateRoundMetaPtr",
+  UPDATE_ROUND_START_AND_END_TIMES = "updateStartAndEndTimes",
+  UPDATE_MATCH_AMOUNT = "updateMatchAmount",
+  UPDATE_ROUND_FEE_ADDRESS = "updateRoundFeeAddress",
+  UPDATE_ROUND_FEE_PERCENTAGE = "updateRoundFeePercentage",
+}
+
+export class TransactionBuilder {
+  round: Round;
+  signer: Signer;
+  transactions: any[];
+  contract: any;
+
+  constructor(round: Round, signer: Signer) {
+    this.round = round;
+    this.signer = signer;
+    this.transactions = [];
+    if (round.id) {
+      this.contract = new ethers.Contract(
+        round.id,
+        roundImplementationContract.abi,
+        signer
+      );
+    } else {
+      throw new Error("Round ID is undefined");
+    }
+  }
+
+  add(action: any, args: any[]) {
+    this.transactions.push(
+      this.contract.interface.encodeFunctionData(action, args)
+    );
+  }
+
+  async execute(): Promise<TransactionResponse> {
+    if (this.transactions.length === 0) {
+      throw new Error("No transactions to execute");
+    }
+    return await this.contract.multicall(this.transactions);
+  }
+
+  getTransactions() {
+    return this.transactions;
+  }
+}
 
 /**
  * Fetch a round by ID
@@ -30,8 +78,8 @@ export async function getRoundById(
     // fetch chain id
     const { chainId } = await signerOrProvider.getNetwork();
 
-    // query the subgraph for all rounds by the given address in the given program
-    const res = await graphql_fetch(
+    // query the subgraph for all rounds by  the given address in the given program
+    let res = await graphql_fetch(
       `
           query GetRounds($roundId: String) {
 
@@ -81,8 +129,10 @@ export async function getRoundById(
                 }
               }
               payoutStrategy {
-                id
-                isReadyForPayout
+                ...on MerklePayout {
+                  id
+                  isReadyForPayout
+                }
               }
             }
           }
@@ -90,6 +140,70 @@ export async function getRoundById(
       chainId,
       { roundId: roundId }
     );
+
+    if (res.errors !== undefined) {
+      // FIXME: remove this part after all the subgraphs have been deployed
+      // try the old query
+      res = await graphql_fetch(
+        `
+          query GetRounds($roundId: String) {
+
+            alloSettings(id:"1") {
+              protocolFeePercentage
+            }
+
+            rounds(where: {
+              ${roundId ? `id: $roundId` : ``}
+            }) {
+              id
+              program {
+                id
+              }
+              roundMetaPtr {
+                protocol
+                pointer
+              }
+              applicationMetaPtr {
+                protocol
+                pointer
+              }
+              applicationsStartTime
+              applicationsEndTime
+              roundStartTime
+              roundEndTime
+              roundFeePercentage
+              token
+              projectsMetaPtr {
+                pointer
+              }
+              projects(first: 1000) {
+                id
+                project
+                status
+                applicationIndex
+                metaPtr {
+                  protocol
+                  pointer
+                }
+              }
+              roles(where: {
+                role: "0xec61da14b5abbac5c5fda6f1d57642a264ebd5d0674f35852829746dfb8174a5"
+              }) {
+                accounts {
+                  address
+                }
+              }
+              payoutStrategy {
+                  id
+                  isReadyForPayout
+              }
+            }
+          }
+        `,
+        chainId,
+        { roundId: roundId }
+      );
+    }
 
     const round: RoundResult = res.data.rounds[0];
 
@@ -117,30 +231,30 @@ export async function getRoundById(
 
     const DENOMINATOR = 100000;
 
-    const protocolFeePercentage = res.data.alloSettings ?
-      (res.data.alloSettings.protocolFeePercentage / DENOMINATOR) :
-      0;
+    const protocolFeePercentage = res.data.alloSettings
+      ? res.data.alloSettings.protocolFeePercentage / DENOMINATOR
+      : 0;
 
-    const roundFeePercentage = res.data.rounds[0].roundFeePercentage / DENOMINATOR;
+    const roundFeePercentage =
+      res.data.rounds[0].roundFeePercentage / DENOMINATOR;
 
     return {
-      id: res.data.rounds[0].id,
+      id: round.id,
+      chainId: chainId,
       roundMetadata,
       applicationMetadata,
       applicationsStartTime: new Date(
-        res.data.rounds[0].applicationsStartTime * 1000
+        Number(round.applicationsStartTime) * 1000
       ),
-      applicationsEndTime: new Date(
-        res.data.rounds[0].applicationsEndTime * 1000
-      ),
-      roundStartTime: new Date(res.data.rounds[0].roundStartTime * 1000),
-      roundEndTime: new Date(res.data.rounds[0].roundEndTime * 1000),
+      applicationsEndTime: new Date(Number(round.applicationsEndTime) * 1000),
+      roundStartTime: new Date(Number(round.roundStartTime) * 1000),
+      roundEndTime: new Date(Number(round.roundEndTime) * 1000),
       protocolFeePercentage: protocolFeePercentage,
       roundFeePercentage: roundFeePercentage,
-      token: res.data.rounds[0].token,
+      token: round.token,
       votingStrategy: res.data.rounds[0].votingStrategy,
       payoutStrategy: res.data.rounds[0].payoutStrategy,
-      ownedBy: res.data.rounds[0].program.id,
+      ownedBy: round.program.id,
       operatorWallets: operatorWallets,
       approvedProjects: approvedProjectsWithMetadata,
       finalized: false,
@@ -258,6 +372,12 @@ export async function deployRoundContract(
   try {
     const chainId = await signerOrProvider.getChainId();
 
+    /* Validate and prepare round data*/
+    if (!round.applicationsEndTime) {
+      round.applicationsEndTime = round.roundStartTime;
+    }
+    round.operatorWallets = round.operatorWallets?.filter((e) => e !== "");
+
     const _roundFactoryContract = roundFactoryContract(chainId);
     const roundFactory = new ethers.Contract(
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -265,12 +385,6 @@ export async function deployRoundContract(
       _roundFactoryContract.abi,
       signerOrProvider
     );
-
-    if (!round.applicationsEndTime) {
-      round.applicationsEndTime = round.roundStartTime;
-    }
-
-    round.operatorWallets = round.operatorWallets?.filter((e) => e !== "");
 
     const initAddresses = [round.votingStrategy, round.payoutStrategy.id];
 
@@ -284,7 +398,7 @@ export async function deployRoundContract(
     const initMetaPtr = [round.store, round.applicationStore];
 
     const initRoles = [
-      round.operatorWallets?.slice(0, 1),
+      [await signerOrProvider.getAddress()],
       round.operatorWallets,
     ];
 
@@ -487,6 +601,7 @@ export async function getProjectOwners(
 /**
  * Fetch finalized matching distribution
  * @param roundId - the ID of a specific round for detail
+ * @param signerOrProvider
  */
 export async function fetchMatchingDistribution(
   roundId: string | undefined,
@@ -547,32 +662,13 @@ export const setReadyForPayout = async ({
 }: {
   roundId: string;
   signerOrProvider: Signer;
-}): Promise<TransactionBlock> => {
-  try {
-    const roundImplementation = new ethers.Contract(
-      roundId,
-      roundImplementationContract.abi,
-      signerOrProvider
-    );
+}): Promise<TransactionResponse> => {
+  const roundImplementation = new ethers.Contract(
+    roundId,
+    roundImplementationContract.abi,
+    signerOrProvider
+  );
 
-    const tx = await roundImplementation.setReadyForPayout();
-    console.log("⏳ Waiting for transaction to be mined...", tx);
-
-    const receipt = await tx.wait();
-
-    console.log("✅ Transaction hash: ", tx.hash);
-    const blockNumber = receipt.blockNumber;
-
-    return {
-      transactionBlockNumber: blockNumber,
-      error: undefined,
-    };
-  } catch (error) {
-    console.error("setReadyForPayout", { error });
-
-    return {
-      transactionBlockNumber: 0,
-      error,
-    };
-  }
+  const tx = await roundImplementation.setReadyForPayout();
+  return tx.wait();
 };

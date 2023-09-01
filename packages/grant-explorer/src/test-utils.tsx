@@ -2,22 +2,19 @@ import { faker } from "@faker-js/faker";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import {
-  initialRoundState,
   RoundContext,
   RoundState,
+  initialRoundState,
 } from "./context/RoundContext";
+import { RoundMetadata } from "./features/api/round";
+import { RoundOverview } from "./features/api/rounds";
 import {
   ApplicationStatus,
-  Project,
+  CartProject,
   ProjectMetadata,
   Round,
 } from "./features/api/types";
-import { CartProvider } from "./context/CartContext";
-import { Provider } from "react-redux";
-import { ReduxRouter } from "@lagunovsky/redux-react-router";
-import { store } from "./app/store";
-import history from "./history";
-import { BigNumber, ethers } from "ethers";
+import { parseUnits } from "viem";
 
 export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
   const applicationsStartTime = faker.date.soon();
@@ -39,6 +36,7 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
     id: faker.finance.ethereumAddress(),
     roundMetadata: {
       name: faker.company.name(),
+      roundType: "private",
       eligibility: { description: "name", requirements: [] },
       programContractAddress: faker.finance.ethereumAddress(),
       quadraticFundingConfig: {
@@ -66,10 +64,11 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
 };
 
 export const makeApprovedProjectData = (
-  overrides?: Partial<Project>,
+  overrides?: Partial<CartProject>,
   projectMetadataOverrides?: Partial<ProjectMetadata>
-): Project => {
+): CartProject => {
   return {
+    amount: "",
     grantApplicationId: `${faker.finance.ethereumAddress()}-${faker.finance.ethereumAddress()}`,
     grantApplicationFormAnswers: [],
     projectRegistryId: faker.datatype.number().toString(),
@@ -87,6 +86,46 @@ export const makeApprovedProjectData = (
     },
     status: ApplicationStatus.APPROVED,
     applicationIndex: faker.datatype.number(),
+    roundId: faker.finance.ethereumAddress(),
+    chainId: 1,
+    ...overrides,
+  };
+};
+
+export const makeRoundOverviewData = (
+  overrides?: Partial<RoundOverview>,
+  roundMetadataOverrides?: Partial<RoundMetadata>
+): RoundOverview => {
+  return {
+    id: faker.finance.ethereumAddress(),
+    chainId: "1",
+    roundMetaPtr: {
+      protocol: 1,
+      pointer: generateIpfsCid(),
+    },
+    applicationMetaPtr: {
+      protocol: 1,
+      pointer: generateIpfsCid(),
+    },
+    applicationsStartTime: faker.date.soon().toString(),
+    applicationsEndTime: faker.date.soon(10).toString(),
+    roundStartTime: faker.date.soon(20).toString(),
+    roundEndTime: faker.date.soon(30).toString(),
+    matchAmount: "1000000000000000000000000",
+    token: faker.finance.ethereumAddress(),
+    roundMetadata: {
+      name: faker.company.name(),
+      roundType: "private",
+      eligibility: {
+        description: faker.lorem.sentence(),
+        requirements: [
+          { requirement: faker.lorem.sentence() },
+          { requirement: faker.lorem.sentence() },
+        ],
+      },
+      programContractAddress: faker.finance.ethereumAddress(),
+      ...roundMetadataOverrides,
+    },
     ...overrides,
   };
 };
@@ -99,7 +138,7 @@ export const renderWithContext = (
   ui: JSX.Element,
   roundStateOverrides: Partial<RoundState> = {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  dispatch: any = jest.fn()
+  dispatch: any = vi.fn()
 ) =>
   render(
     <MemoryRouter>
@@ -109,24 +148,14 @@ export const renderWithContext = (
           dispatch,
         }}
       >
-        <CartProvider>{ui}</CartProvider>
+        {ui}
       </RoundContext.Provider>
     </MemoryRouter>
   );
 
-export const renderWrapped = (ui: JSX.Element) => {
-  render(
-    <Provider store={store}>
-      <ReduxRouter store={store} history={history}>
-        {ui}
-      </ReduxRouter>
-    </Provider>
-  );
-};
-
 export const mockBalance = {
   data: {
-    value: BigNumber.from(ethers.utils.parseUnits("10", 18)),
+    value: parseUnits("10", 18),
   },
 };
 
@@ -140,4 +169,35 @@ export const mockNetwork = {
     { id: 10, name: "Optimism" },
     { id: 5, name: "Goerli" },
   ],
+};
+
+export const setWindowDimensions = (width: number, height: number): void => {
+  Object.defineProperty(window, "innerWidth", {
+    writable: true,
+    configurable: true,
+    value: width,
+  });
+
+  Object.defineProperty(window, "innerHeight", {
+    writable: true,
+    configurable: true,
+    value: height,
+  });
+
+  window.dispatchEvent(new Event("resize"));
+};
+
+// deviceRenderer.ts
+export type DeviceType = "mobile" | "tablet" | "desktop";
+
+export const renderComponentsBasedOnDeviceSize = (): DeviceType => {
+  const deviceWidth = window.innerWidth;
+
+  if (deviceWidth <= 480) {
+    return "mobile";
+  } else if (deviceWidth > 480 && deviceWidth <= 1024) {
+    return "tablet";
+  } else {
+    return "desktop";
+  }
 };

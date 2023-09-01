@@ -8,12 +8,14 @@ import { useBalance } from "wagmi";
 import { errorModalDelayMs } from "../../constants";
 import { useReclaimFunds } from "../../context/round/ReclaimFundsContext";
 import { ProgressStatus, Round } from "../api/types";
-import { payoutTokens, useTokenPrice } from "../api/utils";
+import { payoutTokens } from "../api/utils";
 import ConfirmationModal from "../common/ConfirmationModal";
 import ErrorModal from "../common/ErrorModal";
 import ProgressModal from "../common/ProgressModal";
 import { Spinner } from "../common/Spinner";
 import { AdditionalGasFeesNote } from "./BulkApplicationCommon";
+import { useTokenPrice } from "common";
+import { assertAddress } from "common/src/address";
 
 export default function ReclaimFunds(props: {
   round: Round | undefined;
@@ -141,10 +143,10 @@ function ReclaimFundsContent(props: {
 
   const tokenDetail =
     matchingFundPayoutToken?.address == ethers.constants.AddressZero
-      ? { addressOrName: payoutStrategy }
+      ? { address: assertAddress(payoutStrategy) }
       : {
-          addressOrName: payoutStrategy,
-          token: matchingFundPayoutToken?.address,
+          address: assertAddress(payoutStrategy),
+          token: assertAddress(matchingFundPayoutToken?.address),
         };
 
   const {
@@ -157,7 +159,7 @@ function ReclaimFundsContent(props: {
     props.round &&
     props.round.roundMetadata.quadraticFundingConfig?.matchingFundsAvailable;
   const { data, error, loading } = useTokenPrice(
-    matchingFundPayoutToken?.coingeckoId
+    matchingFundPayoutToken?.redstoneTokenId
   );
   const matchingFundsInUSD =
     matchingFunds && data && !loading && !error && matchingFunds * Number(data);
@@ -275,13 +277,15 @@ function ReclaimFundsContent(props: {
               minimumFractionDigits: 2,
             })}{" "}
             {matchingFundPayoutToken?.name}{" "}
-            <span className="text-sm text-slate-400 ml-2">
-              $
-              {matchingFundsInUSD?.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-              })}{" "}
-              USD
-            </span>
+            {matchingFundsInUSD && matchingFundsInUSD > 0 ? (
+              <span className="text-sm text-slate-400 ml-2">
+                $
+                {matchingFundsInUSD?.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}{" "}
+                USD
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-row justify-start mt-6">
@@ -291,13 +295,15 @@ function ReclaimFundsContent(props: {
               minimumFractionDigits: 2,
             })}{" "}
             {matchingFundPayoutToken?.name}{" "}
-            <span className="text-sm text-slate-400 ml-2">
-              $
-              {tokenBalanceInUSD?.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-              })}{" "}
-              USD
-            </span>
+            {tokenBalanceInUSD && tokenBalanceInUSD > 0 ? (
+              <span className="text-sm text-slate-400 ml-2">
+                $
+                {tokenBalanceInUSD?.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}{" "}
+                USD
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-row justify-start mt-6">

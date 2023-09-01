@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { render, screen } from "@testing-library/react";
-import ViewRoundPage from "../ViewRoundPage";
-import { GrantApplication, ProgressStatus, Round } from "../../api/types";
+import { useParams } from "react-router-dom";
+import { useDisconnect, useSwitchNetwork } from "wagmi";
 import {
   makeGrantApplicationData,
   makeRoundData,
@@ -11,8 +11,8 @@ import {
   wrapWithReadProgramContext,
   wrapWithRoundContext,
 } from "../../../test-utils";
-import { useDisconnect, useSwitchNetwork } from "wagmi";
-import { useParams } from "react-router-dom";
+import { GrantApplication, ProgressStatus, Round } from "../../api/types";
+import ViewRoundPage from "../ViewRoundPage";
 
 jest.mock("../../common/Auth");
 jest.mock("wagmi");
@@ -36,16 +36,25 @@ jest.mock("react-router-dom", () => ({
   useParams: jest.fn(),
 }));
 
-jest.mock("../../api/api", () => ({
-  ...jest.requireActual("../../api/api"),
-  useRoundMatchData: jest.fn(),
-}));
-
 jest.mock("../../common/Auth", () => ({
   useWallet: () => ({
-    chain: {},
+    chain: {
+      name: "Ethereum",
+    },
     address: mockRoundData.operatorWallets![0],
-    provider: { getNetwork: () => ({ chainId: "0" }) },
+    signer: {
+      getChainId: () => {
+        /* do nothing */
+      },
+    },
+    provider: {
+      network: {
+        chainId: 1,
+      },
+      getNetwork: () => {
+        return { chainId: 1 };
+      },
+    },
   }),
 }));
 
@@ -72,7 +81,7 @@ describe("View Round", () => {
           wrapWithReadProgramContext(
             wrapWithRoundContext(<ViewRoundPage />, {
               data: [],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+              fetchRoundStatus: ProgressStatus.IS_ERROR,
             }),
             { programs: [] }
           ),
@@ -163,10 +172,15 @@ describe("View Round", () => {
         )
       )
     );
+
     expect(screen.getByTestId("side-nav-bar")).toBeInTheDocument();
+    expect(screen.getByText("Fund Contract")).toBeInTheDocument();
     expect(screen.getByText("Grant Applications")).toBeInTheDocument();
+    expect(screen.getByText("Round Settings")).toBeInTheDocument();
     expect(screen.getByText("Round Stats")).toBeInTheDocument();
     expect(screen.getByText("Round Results")).toBeInTheDocument();
+    expect(screen.getByText("Fund Grantees")).toBeInTheDocument();
+    expect(screen.getByText("Reclaim Funds")).toBeInTheDocument();
   });
 
   it("indicates how many of each kind of application there are", () => {
@@ -213,13 +227,19 @@ describe("View Round", () => {
 
   it("displays loading spinner when round is loading", () => {
     render(
-      wrapWithApplicationContext(
-        wrapWithReadProgramContext(
-          wrapWithRoundContext(<ViewRoundPage />, {
-            data: [],
-            fetchRoundStatus: ProgressStatus.IN_PROGRESS,
-          }),
-          { programs: [] }
+      wrapWithBulkUpdateGrantApplicationContext(
+        wrapWithApplicationContext(
+          wrapWithReadProgramContext(
+            wrapWithRoundContext(<ViewRoundPage />, {
+              data: [mockRoundData],
+              fetchRoundStatus: ProgressStatus.IN_PROGRESS,
+            }),
+            { programs: [] }
+          ),
+          {
+            applications: [],
+            isLoading: true,
+          }
         )
       )
     );
@@ -233,6 +253,7 @@ describe("View Round", () => {
         wrapWithReadProgramContext(
           wrapWithRoundContext(<ViewRoundPage />, {
             data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
           })
         )
       )

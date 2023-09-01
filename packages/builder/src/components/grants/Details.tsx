@@ -17,6 +17,7 @@ export default function Details({
   bannerImg,
   logoImg,
   showApplications,
+  showTabs,
 }: {
   project?: Metadata | FormInputs | Project;
   updatedAt: number;
@@ -24,6 +25,7 @@ export default function Details({
   bannerImg: string | Blob;
   logoImg: string | Blob;
   showApplications: boolean;
+  showTabs: boolean;
 }) {
   const params = useParams();
   const dispatch = useDispatch();
@@ -42,11 +44,7 @@ export default function Details({
   useEffect(() => {
     if (props.projectID) {
       dispatch(
-        fetchProjectApplications(
-          props.projectID,
-          Number(props.chainId),
-          process.env
-        )
+        fetchProjectApplications(props.projectID, Number(props.chainId))
       );
     }
   }, [dispatch, props.projectID, props.chainId]);
@@ -58,56 +56,65 @@ export default function Details({
         bannerImg={bannerImg}
         logoImg={logoImg}
       />
-      <Tabs className="mt-8" defaultIndex={0}>
-        <TabList className="mb-12" width="fit-content">
-          <Tab
-            _focus={{ boxShadow: "none" }}
-            _selected={{
-              color: "#6F3FF5",
-              borderBottom: "2px solid",
-              borderBottomColor: "#6F3ff5",
-            }}
-          >
-            <span>About</span>
-          </Tab>
-          <Tab
-            _focus={{ boxShadow: "none" }}
-            _selected={{
-              color: "#6F3FF5",
-              borderBottom: "2px solid",
-              borderBottomColor: "#6F3ff5",
-            }}
-          >
-            Stats
-          </Tab>
-          <Tab
-            _focus={{ boxShadow: "none" }}
-            _selected={{
-              color: "#6F3FF5",
-              borderBottom: "2px solid",
-              borderBottomColor: "#6F3ff5",
-            }}
-          >
-            Rounds
-          </Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel>
-            <About
-              project={project}
-              showApplications={showApplications}
-              createdAt={createdAt}
-              updatedAt={updatedAt}
-            />
-          </TabPanel>
-          <TabPanel>
-            <Stats />
-          </TabPanel>
-          <TabPanel>
-            <Rounds />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+      {showTabs ? (
+        <Tabs className="mt-8" defaultIndex={0}>
+          <TabList className="mb-12" width="fit-content">
+            <Tab
+              _focus={{ boxShadow: "none" }}
+              _selected={{
+                color: "#6F3FF5",
+                borderBottom: "2px solid",
+                borderBottomColor: "#6F3ff5",
+              }}
+            >
+              <span>About</span>
+            </Tab>
+            <Tab
+              _focus={{ boxShadow: "none" }}
+              _selected={{
+                color: "#6F3FF5",
+                borderBottom: "2px solid",
+                borderBottomColor: "#6F3ff5",
+              }}
+            >
+              Stats
+            </Tab>
+            <Tab
+              _focus={{ boxShadow: "none" }}
+              _selected={{
+                color: "#6F3FF5",
+                borderBottom: "2px solid",
+                borderBottomColor: "#6F3ff5",
+              }}
+            >
+              Rounds
+            </Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel>
+              <About
+                project={project}
+                showApplications={showApplications}
+                createdAt={createdAt}
+                updatedAt={updatedAt}
+              />
+            </TabPanel>
+            <TabPanel>
+              <Stats />
+            </TabPanel>
+            <TabPanel>
+              <Rounds />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      ) : (
+        <About
+          project={project}
+          showApplications={showApplications}
+          createdAt={createdAt}
+          updatedAt={updatedAt}
+        />
+      )}
     </>
   );
 }

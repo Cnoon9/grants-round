@@ -1,19 +1,16 @@
-import { env } from "process";
+import { ChainId } from "common";
 
-/**
- * Chain Id to network id
- */
-export enum ChainId {
-  MAINNET_CHAIN_ID = 1,
-  GOERLI_CHAIN_ID = 5,
-  OPTIMISM_MAINNET_CHAIN_ID = 10,
-  FANTOM_MAINNET_CHAIN_ID = 250,
-  FANTOM_TESTNET_CHAIN_ID = 0xfa2,
-}
-
-export type GraphEndpoint = {
-  uri: string | undefined;
-  error: string | undefined;
+const graphQlEndpoints: Record<ChainId, string> = {
+  [ChainId.MAINNET]: process.env.REACT_APP_SUBGRAPH_URL_MAINNET!,
+  [ChainId.GOERLI_CHAIN_ID]: process.env.REACT_APP_SUBGRAPH_URL_GOERLI!,
+  [ChainId.OPTIMISM_MAINNET_CHAIN_ID]:
+    process.env.REACT_APP_SUBGRAPH_URL_OPTIMISM_MAINNET!,
+  [ChainId.FANTOM_MAINNET_CHAIN_ID]:
+    process.env.REACT_APP_SUBGRAPH_URL_FANTOM_MAINNET!,
+  [ChainId.FANTOM_TESTNET_CHAIN_ID]:
+    process.env.REACT_APP_SUBGRAPH_URL_FANTOM_TESTNET!,
+  [ChainId.PGN_TESTNET]: process.env.REACT_APP_SUBGRAPH_URL_PGN_TESTNET!,
+  [ChainId.PGN]: process.env.REACT_APP_SUBGRAPH_URL_PGN!,
 };
 
 /**
@@ -22,55 +19,18 @@ export type GraphEndpoint = {
  * @param chainId
  * @returns GraphEndpoint
  */
-const getGraphQLEndpoint = (
-  chainId: number,
-  reactEnv?: any // ProcessEnv
-): GraphEndpoint => {
-  const environment = reactEnv || env;
-  switch (chainId) {
-    case ChainId.MAINNET_CHAIN_ID:
-      return {
-        // eslint-disable-next-line max-len
-        uri: `https://gateway.thegraph.com/api/${environment.REACT_APP_SUBGRAPH_MAINNET_API_KEY}/subgraphs/id/Ba4YGqqyYVFd55zcQnXS3XYTjJARKe93LY6qNgFbrHQz`,
-        error: undefined,
-      };
-    case ChainId.GOERLI_CHAIN_ID:
-      return {
-        uri: "https://api.thegraph.com/subgraphs/name/gitcoinco/grants-round-goerli-testnet",
-        error: undefined,
-      };
-    case ChainId.OPTIMISM_MAINNET_CHAIN_ID:
-      return {
-        uri: "https://api.thegraph.com/subgraphs/name/thelostone-mc/grants-round-optimism-mainnet",
-        error: undefined,
-      };
-    case ChainId.FANTOM_MAINNET_CHAIN_ID:
-      return {
-        uri: "https://api.thegraph.com/subgraphs/name/gitcoinco/grants-round-fantom-mainnet",
-        error: undefined,
-      };
-    case ChainId.FANTOM_TESTNET_CHAIN_ID:
-      return {
-        uri: "https://api.thegraph.com/subgraphs/name/gitcoinco/grants-round-fantom-testnet",
-        error: undefined,
-      };
-    default:
-      return {
-        uri: undefined,
-        error: "Invalid chain id or subgraph not deployed on requested chain",
-      };
-  }
-};
+const getGraphQLEndpoint = (chainId: ChainId): string =>
+  graphQlEndpoints[chainId];
 
+// eslint-disable-next-line import/prefer-default-export
 export const graphqlFetch = async (
   query: string,
-  chainId: number,
-  variables: object = {},
-  reactEnv?: any // ProcessEnv
+  chainId: ChainId,
+  variables: object = {}
 ) => {
-  const endpoint: GraphEndpoint = getGraphQLEndpoint(chainId, reactEnv);
-  if (!endpoint.error && endpoint.uri) {
-    return fetch(endpoint.uri, {
+  const endpoint = getGraphQLEndpoint(chainId);
+  if (endpoint) {
+    return fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -86,5 +46,6 @@ export const graphqlFetch = async (
       return Promise.reject(resp);
     });
   }
-  return Promise.reject(endpoint.error);
+
+  throw new Error(`Subgraph endpoint for chain id ${chainId} not defined.`);
 };

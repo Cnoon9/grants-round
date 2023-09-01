@@ -1,6 +1,14 @@
-import { Fragment, useContext, useState } from "react";
-
+import {
+  CheckIcon,
+  InformationCircleIcon,
+  SelectorIcon,
+} from "@heroicons/react/solid";
 import { yupResolver } from "@hookform/resolvers/yup";
+import { classNames } from "common";
+import { Input } from "common/src/styles";
+import _ from "lodash";
+import moment from "moment";
+import { Fragment, useContext, useEffect, useState } from "react";
 import Datetime from "react-datetime";
 import "react-datetime/css/react-datetime.css";
 import {
@@ -8,33 +16,26 @@ import {
   Controller,
   FieldErrors,
   SubmitHandler,
+  UseFormRegisterReturn,
   useController,
   useForm,
-  UseFormRegisterReturn,
 } from "react-hook-form";
-import * as yup from "yup";
 
-import { Listbox, Transition } from "@headlessui/react";
-import {
-  CheckIcon,
-  InformationCircleIcon,
-  SelectorIcon,
-} from "@heroicons/react/solid";
-import { Input } from "common/src/styles";
-import moment from "moment";
+import { Listbox, RadioGroup, Transition } from "@headlessui/react";
 import ReactTooltip from "react-tooltip";
+import * as yup from "yup";
 import { Program, Round } from "../api/types";
 import { SupportType } from "../api/utils";
 import { FormStepper } from "../common/FormStepper";
 import { FormContext } from "../common/FormWizard";
-import _ from 'lodash';
 
-const ValidationSchema = yup.object().shape({
+export const RoundValidationSchema = yup.object().shape({
   roundMetadata: yup.object({
     name: yup
       .string()
       .required("This field is required.")
       .min(8, "Round name must be at least 8 characters."),
+    roundType: yup.string().required("You must select the round type."),
     support: yup.object({
       type: yup
         .string()
@@ -55,42 +56,60 @@ const ValidationSchema = yup.object().shape({
         })
         .when("type", {
           is: (val: string) => val && val != "Email",
-          then: yup.string().url().required("You must provide a valid URL."),
+          then: yup
+            .string()
+            /*Matches www.example.com, example.com, http and https prefixes, but not www.invalid */
+            .matches(
+              /^(http:\/\/|https:\/\/|ipfs:\/\/)?\S+\.\S+$|^(ipfs:\/\/)\S+$/,
+              "Must be a valid URL"
+            )
+            .required("You must provide a valid URL."),
         }),
     }),
   }),
   applicationsStartTime: yup
     .date()
     .required("This field is required.")
-    .min(new Date(), "You must enter a date and time in the future."),
+    .min(
+      yup.ref("applicationsStartTime"),
+      "You must enter a date and time in the future."
+    )
+    .max(
+      yup.ref("roundStartTime"),
+      "Applications start date must be before the round start date."
+    )
+    .max(
+      yup.ref("roundEndTime"),
+      "Applications start date must be before the round end date."
+    ),
   applicationsEndTime: yup
     .date()
     .required("This field is required.")
     .min(
       yup.ref("applicationsStartTime"),
-      "Applications end date must be later than applications start date"
+      "Applications end date must be later than applications start date."
     )
     .max(
-      yup.ref("roundStartTime"),
-      "Applications end date must be earlier than the round start date"
+      yup.ref("roundEndTime"),
+      "Applications end date must be before the round end date."
     ),
   roundStartTime: yup
     .date()
     .required("This field is required.")
     .min(
-      yup.ref("applicationsEndTime"),
-      "Round start date must be later than applications end date"
+      yup.ref("applicationsStartTime"),
+      "Round start date must be later than the applications start date."
     )
     .max(
       yup.ref("roundEndTime"),
-      "Round start date must be earlier than the round end date"
+      "Round start date must be earlier than the round end date."
     ),
   roundEndTime: yup
     .date()
     .required("This field is required.")
     .min(
       yup.ref("roundStartTime"),
-      "Round end date must be later than the round start date"
+      "Round end date must be later than the round start date."
     ),
 });
 
@@ -112,21 +131,31 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
     control,
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<Round>({
     defaultValues: {
       ...formData,
       roundMetadata: defaultRoundMetadata,
     },
-    resolver: yupResolver(ValidationSchema),
+    resolver: yupResolver(RoundValidationSchema),
   });
 
   const FormStepper = props.stepper;
   const [applicationStartDate, setApplicationStartDate] = useState(moment());
-  const [applicationEndDate, setApplicationEndDate] = useState(moment());
-  const [roundStartDate, setRoundStartDate] = useState(applicationStartDate);
+  const [, setApplicationEndDate] = useState(moment());
+  const [roundStartDate, setRoundStartDate] = useState(moment());
+  const [roundEndDate, setRoundEndDate] = useState<moment.Moment | "">("");
+  const [rollingApplications, setRollingApplications] = useState(false);
 
   const next: SubmitHandler<Round> = async (values) => {
+    /* Insert HTTPS into support URL if missing */
+    if (
+      values.roundMetadata.support?.type === "Website" &&
+      !/^(https?|ipfs):\/\//.test(values.roundMetadata.support.info)
+    ) {
+      values.roundMetadata.support.info = `https://${values.roundMetadata.support.info}`;
+    }
     const data = _.merge(formData, values);
     setFormData(data);
     setCurrentStep(currentStep + 1);
@@ -135,6 +164,7 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
   const now = moment().add(1, "hour").startOf("hour");
   const prev = () => setCurrentStep(currentStep - 1);
   const yesterday = moment().subtract(1, "day");
+
   const disablePastDate = (current: moment.Moment) => {
     return current.isAfter(yesterday);
   };
@@ -143,19 +173,26 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
     return current.isAfter(applicationStartDate);
   }
 
-  function disableBeforeApplicationEndDate(current: moment.Moment) {
-    return current.isAfter(applicationEndDate);
-  }
+  const disablePastAndBeforeRoundStartDate = (current: moment.Moment) => {
+    return disablePastDate(current);
+  };
 
   function disableBeforeRoundStartDate(current: moment.Moment) {
     return current.isAfter(roundStartDate);
   }
 
+  useEffect(() => {
+    if (rollingApplications && roundEndDate !== "") {
+      setValue("applicationsEndTime", roundEndDate.toDate());
+      setApplicationEndDate(roundEndDate);
+    }
+  }, [rollingApplications, roundEndDate, setValue]);
+
   return (
     <div>
       <div className="md:grid md:grid-cols-3 md:gap-10">
         <div className="md:col-span-1">
-          <p className="text-base leading-6">Details</p>
+          <p className="text-base leading-6">Round Details</p>
           <p className="mt-1 text-sm text-grey-400">
             What is the Round name, when do applications open/close, and when
             does it start and end?
@@ -168,7 +205,7 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
             onSubmit={handleSubmit(next)}
             className="shadow-sm text-grey-500"
           >
-            <div className="pt-7 pb-10 sm:px-6 bg-white">
+            <div className="pt-7 sm:px-6 bg-white">
               <div className="grid grid-cols-6 gap-6">
                 <RoundName
                   register={register("roundMetadata.name")}
@@ -177,7 +214,7 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                 {program && <ProgramChain program={program} />}
               </div>
 
-              <p className="mt-6 mb-4 text-sm">
+              <p className="mt-6 mb-2 text-sm text-grey-400">
                 Where can applicants reach you and/or your team if support is
                 needed?
               </p>
@@ -197,12 +234,16 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                 </div>
               </div>
 
-              <div className="mt-6 mb-4 text-sm">
-                <span>
+              <div className="mt-6 mb-4 text-sm text-grey-400">
+                <p>
                   What are the dates for the Applications and Round voting
                   period(s)?
-                </span>
-                <ApplicationDatesInformation />
+                  <ApplicationDatesInformation />
+                </p>
+                <p className="text-sm mt-0.5">
+                  Tips: You can accept applications even after the round starts
+                  by setting up overlapping Applications and Round periods!
+                </p>
               </div>
 
               <p className="text-sm mb-2">
@@ -243,7 +284,7 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                             className:
                               "block w-full border-0 p-0 text-gray-900 placeholder-grey-40  0 focus:ring-0 text-sm",
                           }}
-                          isValidDate={disablePastDate}
+                          isValidDate={disablePastAndBeforeRoundStartDate}
                           initialViewDate={now}
                           utc={true}
                           dateFormat={"YYYY-MM-DD"}
@@ -274,6 +315,38 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                       {errors.applicationsStartTime?.message}
                     </p>
                   )}
+                  <div className="flex items-center mt-2">
+                    <input
+                      id="rollingApplications"
+                      name="rollingApplications"
+                      type="checkbox"
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      checked={rollingApplications}
+                      onChange={(e) => setRollingApplications(e.target.checked)}
+                    />
+                    <label
+                      htmlFor="rollingApplications"
+                      className="ml-2 block text-sm text-grey-400"
+                    >
+                      Enable rolling applications
+                    </label>
+                    <InformationCircleIcon
+                      data-tip
+                      data-for="rollingApplicationsTooltip"
+                      className="h-4 w-4 ml-1 text-grey-400"
+                    />
+                    <ReactTooltip
+                      id="rollingApplicationsTooltip"
+                      place="top"
+                      effect="solid"
+                      className="text-grey-400"
+                    >
+                      <span>
+                        If enabled, applications will be accepted until the
+                        round ends.
+                      </span>
+                    </ReactTooltip>
+                  </div>
                 </div>
 
                 <div className="col-span-6 sm:col-span-3">
@@ -282,6 +355,10 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                       errors.applicationsEndTime
                         ? "border-red-300 text-red-900 placeholder-red-300 focus-within:outline-none focus-within:border-red-500 focus-within: ring-red-500"
                         : "border-gray-300 focus-within:border-indigo-600 focus-within:ring-indigo-600"
+                    } ${
+                      rollingApplications
+                        ? "cursor-not-allowed bg-gray-100"
+                        : ""
                     }`}
                   >
                     <label
@@ -305,7 +382,8 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                             id: "applicationsEndTime",
                             placeholder: "",
                             className:
-                              "block w-full border-0 p-0 text-gray-900 placeholder-grey-400 focus:ring-0 text-sm",
+                              "block w-full border-0 p-0 text-gray-900 placeholder-grey-400 focus:ring-0 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100",
+                            disabled: rollingApplications,
                           }}
                           isValidDate={disableBeforeApplicationStartDate}
                           utc={true}
@@ -377,7 +455,7 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                             className:
                               "block w-full border-0 p-0 text-gray-900 placeholder-grey-400 focus:ring-0 text-sm",
                           }}
-                          isValidDate={disableBeforeApplicationEndDate}
+                          isValidDate={disableBeforeApplicationStartDate}
                           utc={true}
                           dateFormat={"YYYY-MM-DD"}
                           timeFormat={"HH:mm UTC"}
@@ -433,6 +511,17 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                             className:
                               "block w-full border-0 p-0 text-gray-900 placeholder-grey-400 focus:ring-0 text-sm",
                           }}
+                          onChange={(date) => {
+                            field.onChange(moment(date));
+                            setRoundEndDate(moment(date));
+                            if (rollingApplications) {
+                              setApplicationEndDate(moment(date));
+                              setValue(
+                                "applicationsEndTime",
+                                moment(date).toDate()
+                              );
+                            }
+                          }}
                           isValidDate={disableBeforeRoundStartDate}
                           utc={true}
                           dateFormat={"YYYY-MM-DD"}
@@ -465,6 +554,41 @@ export function RoundDetailForm(props: RoundDetailFormProps) {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Round Type */}
+            <div className="p-6 bg-white">
+              <div className="grid grid-rows-1 text-grey-400">
+                <p>
+                  Do you want to show your round on the Gitcoin Explorer
+                  homepage?
+                </p>
+                <p className="text-sm mt-0.5">
+                  <a
+                    className="text-violet-400 mr-1"
+                    href="https://grant-explorer.gitcoin.co/"
+                    target="_blank"
+                  >
+                    Gitcoin Explorer
+                  </a>
+                  is the place where supporters (donors) discover and donate to
+                  projects.
+                </p>
+              </div>
+              <div className="flex mt-4">
+                <RoundType
+                  register={register("roundMetadata.roundType")}
+                  control={control}
+                />
+              </div>
+              {errors.roundMetadata?.roundType && (
+                <p
+                  className="text-xs text-pink-500 mt-2"
+                  data-testid="round-end-date-error"
+                >
+                  {errors.roundMetadata?.roundType?.message}
+                </p>
+              )}
             </div>
 
             <div className="px-6 align-middle py-3.5 shadow-md">
@@ -511,7 +635,7 @@ function RoundName(props: {
   );
 }
 
-function ProgramChain(props: { program: Program }) {
+export function ProgramChain(props: { program: Program }) {
   const { program } = props;
   return (
     <div className="col-span-6 sm:col-span-3 opacity-50">
@@ -561,7 +685,7 @@ function ContactInformation(props: {
       </div>
       <Input
         {...props.register}
-        className={"h-10"}
+        className={"h-10 mt-2"}
         $hasError={props.errors.roundMetadata?.support?.info}
         type="text"
         placeholder="Enter desired form of contact here. Ex: website, email..."
@@ -576,7 +700,7 @@ function ContactInformation(props: {
   );
 }
 
-function SupportTypeButton(props: {
+export function SupportTypeButton(props: {
   errors: FieldErrors<Round>;
   supportType?: SupportType;
 }) {
@@ -612,6 +736,7 @@ function SupportTypeDropdown(props: {
   errors: FieldErrors<Round>;
   control: Control<Round>;
   supportTypes: SupportType[];
+  showLabel?: boolean;
 }) {
   const { field } = useController({
     name: "roundMetadata.support.type",
@@ -626,14 +751,17 @@ function SupportTypeDropdown(props: {
       <Listbox {...field}>
         {({ open }) => (
           <div>
-            <Listbox.Label className="text-sm mt-4 mb-2">
-              <p className="text-sm">
-                <span>Support Input</span>
-                <span className="text-right text-violet-400 float-right text-xs mt-1">
-                  *Required
-                </span>
-              </p>
-            </Listbox.Label>
+            {props.showLabel ? (
+              <Listbox.Label className="text-sm mt-4 mb-2">
+                <p className="text-sm">
+                  <span>Support Input</span>
+                  <span className="text-right text-violet-400 float-right text-xs mt-1">
+                    *Required
+                  </span>
+                </p>
+              </Listbox.Label>
+            ) : null}
+
             <div className="mt-1 mb-2 shadow-sm block rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
               <SupportTypeButton
                 errors={props.errors}
@@ -714,57 +842,68 @@ function SupportTypeDropdown(props: {
   );
 }
 
+// TODO: Add regex for URLs
+export const supportTypes: SupportType[] = [
+  {
+    name: "Select what type of input.",
+    regex: "https://www.google.com",
+    default: true,
+  },
+  {
+    name: "Email",
+    regex: "https://www.google.com",
+    default: false,
+  },
+  {
+    name: "Website",
+    regex: "https://www.google.com",
+    default: false,
+  },
+  {
+    name: "Discord Group Invite Link",
+    regex: "https://www.google.com",
+    default: false,
+  },
+  {
+    name: "Telegram Group Invite Link",
+    regex: "https://www.google.com",
+    default: false,
+  },
+  {
+    name: "Google Form Link",
+    regex: "https://www.google.com",
+    default: false,
+  },
+  {
+    name: "Other (please provide a link)",
+    regex: "https://www.google.com",
+    default: false,
+  },
+];
+
 function Support(props: {
   register: UseFormRegisterReturn<string>;
   errors: FieldErrors<Round>;
   control: Control<Round>;
 }) {
-  // TODO: Add regex for URLs
-  const supportTypes: SupportType[] = [
-    {
-      name: "Select what type of input.",
-      regex: "https://www.google.com",
-      default: true,
-    },
-    {
-      name: "Email",
-      regex: "https://www.google.com",
-      default: false,
-    },
-    {
-      name: "Website",
-      regex: "https://www.google.com",
-      default: false,
-    },
-    {
-      name: "Discord Group Invite Link",
-      regex: "https://www.google.com",
-      default: false,
-    },
-    {
-      name: "Telegram Group Invite Link",
-      regex: "https://www.google.com",
-      default: false,
-    },
-    {
-      name: "Google Form Link",
-      regex: "https://www.google.com",
-      default: false,
-    },
-    {
-      name: "Other (please provide a link)",
-      regex: "https://www.google.com",
-      default: false,
-    },
-  ];
-
   return (
-    <SupportTypeDropdown
-      register={props.register}
-      errors={props.errors}
-      control={props.control}
-      supportTypes={supportTypes}
-    />
+    <div className="mt-2 mb-2">
+      <div className="flex justify-between">
+        <label htmlFor="roundMetadata.support.info" className="text-sm">
+          Suppport Input
+        </label>
+        <span className="text-right text-violet-400 float-right text-xs mt-1">
+          *Required
+        </span>
+      </div>
+
+      <SupportTypeDropdown
+        register={props.register}
+        errors={props.errors}
+        control={props.control}
+        supportTypes={supportTypes}
+      />
+    </div>
   );
 }
 
@@ -790,6 +929,85 @@ function ApplicationDatesInformation() {
   );
 }
 
-function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(" ");
+function RoundType(props: {
+  register: UseFormRegisterReturn<string>;
+  control?: Control<Round>;
+}) {
+  const { field: roundTypeField } = useController({
+    name: "roundMetadata.roundType",
+    defaultValue: "",
+    control: props.control,
+    rules: {
+      required: true,
+    },
+  });
+
+  return (
+    <>
+      {" "}
+      <div className="col-span-6 sm:col-span-3">
+        <RadioGroup {...roundTypeField} data-testid="round-type-selection">
+          <div>
+            <RadioGroup.Option value="public" className="mb-2">
+              {({ checked, active }) => (
+                <span className="flex items-center text-sm">
+                  <span
+                    className={classNames(
+                      checked
+                        ? "bg-indigo-600 border-transparent"
+                        : "bg-white border-gray-300",
+                      active ? "ring-2 ring-offset-2 ring-indigo-500" : "",
+                      "h-4 w-4 rounded-full border flex items-center justify-center"
+                    )}
+                    aria-hidden="true"
+                  >
+                    <span className="rounded-full bg-white w-1.5 h-1.5" />
+                  </span>
+                  <RadioGroup.Label
+                    as="span"
+                    className="ml-3 block text-sm text-gray-700"
+                    data-testid="round-type-public"
+                  >
+                    Yes, make my round public
+                    <p className="text-xs text-gray-400 mt-1">
+                      Anyone on the Gitcoin Explorer homepage will be able to
+                      see your round
+                    </p>
+                  </RadioGroup.Label>
+                </span>
+              )}
+            </RadioGroup.Option>
+            <RadioGroup.Option value="private">
+              {({ checked, active }) => (
+                <span className="flex items-center text-sm">
+                  <span
+                    className={classNames(
+                      checked
+                        ? "bg-indigo-600 border-transparent"
+                        : "bg-white border-gray-300",
+                      active ? "ring-2 ring-offset-2 ring-indigo-500" : "",
+                      "h-4 w-4 rounded-full border flex items-center justify-center"
+                    )}
+                    aria-hidden="true"
+                  >
+                    <span className="rounded-full bg-white w-1.5 h-1.5" />
+                  </span>
+                  <RadioGroup.Label
+                    as="span"
+                    className="ml-3 block text-sm text-gray-700"
+                    data-testid="round-type-private"
+                  >
+                    No, keep my round private
+                    <p className="text-xs text-gray-400 mt-1">
+                      Only people with the round link can see your round.
+                    </p>
+                  </RadioGroup.Label>
+                </span>
+              )}
+            </RadioGroup.Option>
+          </div>
+        </RadioGroup>
+      </div>
+    </>
+  );
 }

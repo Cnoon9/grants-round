@@ -1,15 +1,12 @@
 import { datadogRum } from "@datadog/browser-rum";
+import { Client as AlloClient } from "allo-indexer-client";
+import { ChainId, convertStatusToText } from "common";
 import { ethers, utils } from "ethers";
 import { Dispatch } from "redux";
-import { convertStatusToText } from "common";
-import {
-  Client as AlloClient,
-  Application as GrantApplication,
-} from "allo-indexer-client";
 import { addressesByChainID } from "../contracts/deployments";
 import { global } from "../global";
 import { RootState } from "../reducers";
-import { Application, AppStatus, ProjectStats } from "../reducers/projects";
+import { AppStatus, Application, ProjectStats } from "../reducers/projects";
 import { ProjectEvents, ProjectEventsMap } from "../types";
 import { graphqlFetch } from "../utils/graphql";
 import { fetchProjectOwners } from "../utils/projects";
@@ -20,38 +17,44 @@ import { fetchGrantData } from "./grantsMetadata";
 import { addAlert } from "./ui";
 
 export const PROJECTS_LOADING = "PROJECTS_LOADING";
+
 interface ProjectsLoadingAction {
   payload: number;
   type: typeof PROJECTS_LOADING;
 }
 
 export const PROJECTS_LOADED = "PROJECTS_LOADED";
+
 interface ProjectsLoadedAction {
   type: typeof PROJECTS_LOADED;
   payload: {
-    chainID: number;
+    chainID: ChainId;
     events: ProjectEventsMap;
   };
 }
 
 export const PROJECTS_ERROR = "PROJECTS_ERROR";
+
 interface ProjectsErrorAction {
   type: typeof PROJECTS_ERROR;
   error: string;
 }
 
 export const PROJECTS_UNLOADED = "PROJECTS_UNLOADED";
+
 export interface ProjectsUnloadedAction {
   type: typeof PROJECTS_UNLOADED;
 }
 
 export const PROJECT_APPLICATIONS_LOADING = "PROJECT_APPLICATIONS_LOADING";
+
 interface ProjectApplicationsLoadingAction {
   type: typeof PROJECT_APPLICATIONS_LOADING;
   projectID: string;
 }
 
 export const PROJECT_APPLICATIONS_LOADED = "PROJECT_APPLICATIONS_LOADED";
+
 interface ProjectApplicationsLoadedAction {
   type: typeof PROJECT_APPLICATIONS_LOADED;
   projectID: string;
@@ -59,6 +62,7 @@ interface ProjectApplicationsLoadedAction {
 }
 
 export const PROJECT_APPLICATION_UPDATED = "PROJECT_APPLICATION_UPDATED";
+
 interface ProjectApplicationUpdatedAction {
   type: typeof PROJECT_APPLICATION_UPDATED;
   projectID: string;
@@ -67,6 +71,7 @@ interface ProjectApplicationUpdatedAction {
 }
 
 export const PROJECT_APPLICATIONS_ERROR = "PROJECT_APPLICATIONS_ERROR";
+
 interface ProjectApplicationsErrorAction {
   type: typeof PROJECT_APPLICATIONS_ERROR;
   projectID: string;
@@ -74,6 +79,7 @@ interface ProjectApplicationsErrorAction {
 }
 
 export const PROJECT_OWNERS_LOADED = "PROJECT_OWNERS_LOADED";
+
 interface ProjectOwnersLoadedAction {
   type: typeof PROJECT_OWNERS_LOADED;
   payload: {
@@ -83,12 +89,14 @@ interface ProjectOwnersLoadedAction {
 }
 
 export const PROJECT_STATS_LOADING = "PROJECT_STATS_LOADING";
+
 interface ProjectStatsLoadingAction {
   type: typeof PROJECT_STATS_LOADING;
   projectID: string;
 }
 
 export const PROJECT_STATS_LOADED = "PROJECT_STATS_LOADED";
+
 interface ProjectStatsLoadedAction {
   type: typeof PROJECT_STATS_LOADED;
   projectID: string;
@@ -108,13 +116,13 @@ export type ProjectsActions =
   | ProjectStatsLoadingAction
   | ProjectStatsLoadedAction;
 
-export const projectsLoading = (chainID: number): ProjectsLoadingAction => ({
+export const projectsLoading = (chainID: ChainId): ProjectsLoadingAction => ({
   type: PROJECTS_LOADING,
   payload: chainID,
 });
 
 export const projectsLoaded = (
-  chainID: number,
+  chainID: ChainId,
   events: ProjectEventsMap
 ): ProjectsLoadedAction => ({
   type: PROJECTS_LOADED,
@@ -129,7 +137,7 @@ const projectsUnload = () => ({
 });
 
 const fetchProjectCreatedUpdatedEvents = async (
-  chainID: number,
+  chainID: ChainId,
   account: string
 ) => {
   const addresses = addressesByChainID(chainID!);
@@ -226,16 +234,16 @@ const fetchProjectCreatedUpdatedEvents = async (
 export const extractProjectEvents = (
   createdEvents: ethers.providers.Log[],
   updatedEvents: ethers.providers.Log[],
-  chainID: number
+  chainId: ChainId
 ) => {
-  const chainAddresses = addressesByChainID(chainID);
+  const chainAddresses = addressesByChainID(chainId);
   const eventList: { [key: string]: ProjectEvents } = {};
   const projectEventsMap: ProjectEventsMap = {};
 
   createdEvents.forEach((createEvent) => {
     // FIXME: use this line when the fantom RPC bug has been fixed (update line to work with new project id format)
     // const id = createEvent.args!.projectID!;
-    const id = `${chainID}:${chainAddresses.projectRegistry}:${parseInt(
+    const id = `${chainId}:${chainAddresses.projectRegistry}:${parseInt(
       createEvent.topics[1],
       16
     )}`;
@@ -254,7 +262,7 @@ export const extractProjectEvents = (
   updatedEvents.forEach((updateEvent) => {
     // FIXME: use this line when the fantom RPC bug has been fixed (update line to work with new project id format)
     // const id = BigNumber.from(updateEvent.args!.projectID!).toNumber();
-    const id = `${chainID}:${chainAddresses.projectRegistry}:${parseInt(
+    const id = `${chainId}:${chainAddresses.projectRegistry}:${parseInt(
       updateEvent.topics[1],
       16
     )}`;
@@ -288,7 +296,7 @@ export const loadProjectOwners =
   };
 
 export const loadProjects =
-  (chainID: number, withMetaData?: boolean) =>
+  (chainID: ChainId, withMetaData?: boolean) =>
   async (dispatch: Dispatch, getState: () => RootState) => {
     try {
       const state = getState();
@@ -324,6 +332,14 @@ export const loadProjects =
       datadogRum.addError(error, { chainID });
       console.error(chainName, chainID, error);
 
+      dispatch(projectsLoaded(chainID, {}));
+
+      /* TODO: Once ENS is deployed on PGN Mainnet and testnet, undo this */
+      // @ts-expect-error
+      if (chainID === 424 && error?.reason === "ENS name not configured") {
+        return;
+      }
+
       dispatch(
         addAlert(
           "error",
@@ -331,8 +347,6 @@ export const loadProjects =
           "Please try refreshing the page."
         )
       );
-
-      dispatch(projectsLoaded(chainID, {}));
     }
   };
 
@@ -348,7 +362,7 @@ export const loadAllChainsProjects =
 export const fetchProjectApplicationInRound = async (
   applicationId: string,
   roundID: string,
-  reactEnv?: any
+  roundChainId: ChainId
 ): Promise<any> => {
   const splitApplicationId = applicationId.split(":");
   const projectChainId = Number(splitApplicationId[0]);
@@ -359,27 +373,28 @@ export const fetchProjectApplicationInRound = async (
     projectChainId,
     projectNumber,
     projectRegistryAddress
-  );
+  ).toLowerCase();
+
+  const Id = roundID.toLowerCase();
 
   try {
     const response: any = await graphqlFetch(
-      `query projectApplicationInRound($projectApplicationID: String, $roundID: String) {
+      `query projectApplicationInRound($projectApplicationID: String, $Id: String) {
           roundApplications(
             where: {
               project: $projectApplicationID,
-              round: $roundID
+              round: $Id
             }
           ) {
             status
           }
         }
       `,
-      projectChainId,
+      roundChainId,
       {
         projectApplicationID,
-        roundID,
-      },
-      reactEnv
+        Id,
+      }
     );
 
     if (response.errors) {
@@ -402,7 +417,7 @@ export const fetchProjectApplicationInRound = async (
 };
 
 export const fetchProjectApplications =
-  (projectID: string, projectChainId: number, reactEnv: any /* ProcessEnv */) =>
+  (projectID: string, projectChainId: ChainId) =>
   async (dispatch: Dispatch) => {
     dispatch({
       type: PROJECT_APPLICATIONS_LOADING,
@@ -426,8 +441,8 @@ export const fetchProjectApplications =
           );
 
           const response: any = await graphqlFetch(
-            `query roundApplications($projectID: String) {
-            roundApplications(where: { project: $projectID }) {
+            `query roundApplications($projectApplicationID: String) {
+            roundApplications(where: { project: $projectApplicationID }) {
               status
               round {
                 id
@@ -441,15 +456,12 @@ export const fetchProjectApplications =
           `,
             chain.id,
             {
-              projectID: projectApplicationID,
-            },
-            reactEnv
+              projectApplicationID,
+            }
           );
 
           if (response.errors) {
-            datadogRum.addError(response.error, { projectID });
-            console.error(response.error);
-            return [];
+            throw response.errors;
           }
 
           const applications = response.data.roundApplications.map(
@@ -473,8 +485,15 @@ export const fetchProjectApplications =
 
           return applications;
         } catch (error: any) {
+          console.error(
+            "failed fetchProjectApplications for",
+            "Project Id",
+            projectID,
+            "in Chain Id",
+            chain.id,
+            error
+          );
           datadogRum.addError(error, { projectID });
-          console.error(error);
 
           return [];
         }
@@ -489,13 +508,23 @@ export const fetchProjectApplications =
   };
 
 export const loadProjectStats =
-  (projectID: string, rounds: Array<{ roundId: string; chainId: number }>) =>
+  (
+    projectID: string,
+    projectRegistryAddress: string,
+    projectChainId: string,
+    rounds: Array<{ roundId: string; chainId: ChainId }>
+  ) =>
   async (dispatch: Dispatch) => {
+    const uniqueProjectID = generateUniqueRoundApplicationID(
+      Number(projectChainId),
+      projectID,
+      projectRegistryAddress
+    );
+
     dispatch({
       type: PROJECT_STATS_LOADING,
       projectID,
     });
-
     const boundFetch = fetch.bind(window);
 
     const stats: ProjectStats[] = [];
@@ -530,21 +559,23 @@ export const loadProjectStats =
         round.chainId
       );
 
-      const project = await client
-        .getRoundApplications(utils.getAddress(round.roundId.toLowerCase()))
-        .then(
-          (apps: GrantApplication[]) =>
-            apps.filter(
-              (app: GrantApplication) => app.projectNumber === Number(projectID)
-            )[0]
-        );
+      const applications = await client.getRoundApplications(
+        utils.getAddress(round.roundId.toLowerCase())
+      );
+
+      const project = applications.find(
+        (app) => app.projectId === uniqueProjectID && app.status === "APPROVED"
+      );
 
       if (project) {
         await updateStats(
           {
             fundingReceived: project.amountUSD,
             uniqueContributors: project.uniqueContributors,
-            avgContribution: project.amountUSD / project.uniqueContributors,
+            avgContribution:
+              project.uniqueContributors === 0
+                ? 0
+                : project.amountUSD / project.uniqueContributors,
             totalContributions: project.votes,
             success: true,
           },
@@ -555,12 +586,11 @@ export const loadProjectStats =
       }
     }
 
-    if (rounds.length > 0)
-      dispatch({
-        type: PROJECT_STATS_LOADED,
-        projectID,
-        stats,
-      });
+    dispatch({
+      type: PROJECT_STATS_LOADED,
+      projectID,
+      stats,
+    });
   };
 
 export const unloadProjects = () => projectsUnload();

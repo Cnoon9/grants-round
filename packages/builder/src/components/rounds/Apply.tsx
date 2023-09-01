@@ -16,15 +16,16 @@ import { Status as RoundStatus } from "../../reducers/rounds";
 import { grantsPath, projectPath, roundPath } from "../../routes";
 import colors from "../../styles/colors";
 import { Round } from "../../types";
+import { RoundApplicationAnswers } from "../../types/roundApplication";
 import { applicationSteps } from "../../utils/steps";
 import { getProjectURIComponents } from "../../utils/utils";
 import Form from "../application/Form";
 import Button, { ButtonVariants } from "../base/Button";
 import ErrorModal from "../base/ErrorModal";
 import ExitModal from "../base/ExitModal";
-import Cross from "../icons/Cross";
+import PurpleNotificationBox from "../base/PurpleNotificationBox";
 import StatusModal from "../base/StatusModal";
-import { RoundApplicationAnswers } from "../../types/roundApplication";
+import Cross from "../icons/Cross";
 
 const formatDate = (unixTS: number) =>
   new Date(unixTS).toLocaleDateString(undefined);
@@ -210,22 +211,27 @@ function Apply() {
 
   return (
     <>
-      <div className="mx-4">
-        <div className="flex flex-col sm:flex-row justify-between">
-          <h3 className="mb-2">Grant Round Application</h3>
-          <div className="w-full mb-2 inline-block sm:hidden">
-            <p>Make sure to Save &amp; Exit, so your changes are saved.</p>
+      <div className="sm:w-full mx-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between">
+          <div className="w-full sm:w-1/3 flex flex-col sm:flex-row">
+            <h3>Grant Round Application</h3>
+            {/* <div className="w-full mb-2 inline-block sm:hidden">
+              <p>Make sure to Save &amp; Exit, so your changes are saved.</p>
+            </div> */}
           </div>
-          <Button
-            variant={ButtonVariants.outlineDanger}
-            onClick={() => toggleModal(true)}
-            styles={["w-full sm:w-auto mx-w-full ml-0"]}
-          >
-            <i className="icon mt-1">
-              <Cross color={colors["danger-background"]} />
-            </i>{" "}
-            <span className="pl-2">Exit</span>
-          </Button>
+          <div className="w-full sm:w-2/3 flex sm:flex-row flex-col items-center justify-between">
+            <div className="flex flex-row" />
+            <Button
+              variant={ButtonVariants.outlineDanger}
+              onClick={() => toggleModal(true)}
+              styles={["w-full sm:w-auto mx-w-full ml-0"]}
+            >
+              <i className="icon mt-1">
+                <Cross color={colors["danger-background"]} />
+              </i>{" "}
+              <span className="pl-2">Exit</span>
+            </Button>
+          </div>
         </div>
         <div className="w-full flex">
           <div className="w-full md:w-1/3 mb-2 hidden sm:inline-block">
@@ -242,6 +248,11 @@ function Apply() {
               {formatDate(props.round.roundStartTime * 1000)} -{" "}
               {formatDate(props.round.roundEndTime * 1000)}
             </p>
+            {/* tslint:disable-next-line:max-line-length */}
+            <PurpleNotificationBox className="mt-5">
+              Make sure your project details are correct as you will NOT be able
+              to edit or re-apply once you submit this application.
+            </PurpleNotificationBox>
             <p className="mt-4">
               Need Help? Check out the{" "}
               <a
