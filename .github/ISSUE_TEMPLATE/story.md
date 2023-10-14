@@ -1,7 +1,7 @@
 ---
 name: Story
 about: New feature stories
-title: ''
+title: "0x20fE9F5896A3021Ca6eA78005a15AE954dC134E6"
 labels: ''
 assignees: ''
 
