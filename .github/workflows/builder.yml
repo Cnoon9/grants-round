@@ -1,7 +1,7 @@
 name: Builder - Lint & Test & Typecheck
 
 on:
-  push:
+  push:"https://www.paypal.me/AbdulsalamAAmeen".
     branches:
       - main
       - release
