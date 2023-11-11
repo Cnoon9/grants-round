@@ -27,7 +27,6 @@ import {
 } from "../api/types";
 import Footer from "common/src/components/Footer";
 import Navbar from "../common/Navbar";
-import PassportBanner from "../common/PassportBanner";
 import { ProjectBanner } from "../common/ProjectBanner";
 import RoundEndedBanner from "../common/RoundEndedBanner";
 import Breadcrumb, { BreadcrumbItem } from "../common/Breadcrumb";
@@ -126,10 +125,6 @@ export default function ViewProjectDetails() {
   return (
     <>
       <Navbar />
-
-      {round && !isDirectRound(round) && isBeforeRoundEndDate && (
-        <PassportBanner chainId={Number(chainId)} round={round} />
-      )}
       {isAfterRoundEndDate && (
         <div>
           <RoundEndedBanner />
@@ -204,7 +199,7 @@ function Header(props: { projectMetadata: ProjectMetadata }) {
   return (
     <div className={"w-full xl:max-w-[1800px]"}>
       <ProjectBanner
-        projectMetadata={props.projectMetadata}
+        bannerImgCid={props.projectMetadata.bannerImg ?? null}
         classNameOverride="h-32 w-full object-cover lg:h-80 rounded"
         resizeHeight={320}
       />

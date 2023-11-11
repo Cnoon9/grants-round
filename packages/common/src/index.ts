@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import { useMemo, useState } from "react";
 import { ChainId } from "./chains";
-
+import z from "zod";
 export * from "./icons";
 export * from "./markdown";
 
@@ -10,27 +10,28 @@ export { ChainId };
 export enum PassportState {
   NOT_CONNECTED,
   INVALID_PASSPORT,
-  MATCH_ELIGIBLE,
-  MATCH_INELIGIBLE,
+  SCORE_AVAILABLE,
   LOADING,
   ERROR,
   INVALID_RESPONSE,
 }
 
-type PassportEvidence = {
-  type: string;
-  rawScore: string;
-  threshold: string;
-};
+const PassportEvidenceSchema = z.object({
+  type: z.string().nullish(),
+  rawScore: z.coerce.number(),
+  threshold: z.string().nullish(),
+});
 
-export type PassportResponse = {
-  address?: string;
-  score?: string;
-  status?: string;
-  evidence?: PassportEvidence;
-  error?: string;
-  detail?: string;
-};
+export type PassportResponse = z.infer<typeof PassportResponseSchema>;
+
+export const PassportResponseSchema = z.object({
+  address: z.string().nullish(),
+  score: z.string().nullish(),
+  status: z.string().nullish(),
+  evidence: PassportEvidenceSchema.nullish(),
+  error: z.string().nullish(),
+  detail: z.string().nullish(),
+});
 
 /**
  * Endpoint used to fetch the passport score for a given address
@@ -97,6 +98,8 @@ export type Payout = {
 };
 
 export const graphQlEndpoints: Record<ChainId, string> = {
+  [ChainId.DEV1]: process.env.REACT_APP_SUBGRAPH_DEV1_API!,
+  [ChainId.DEV2]: process.env.REACT_APP_SUBGRAPH_DEV2_API!,
   [ChainId.PGN]: process.env.REACT_APP_SUBGRAPH_PGN_API!,
   [ChainId.GOERLI_CHAIN_ID]: process.env.REACT_APP_SUBGRAPH_GOERLI_API!,
   [ChainId.PGN_TESTNET]: process.env.REACT_APP_SUBGRAPH_PGN_TESTNET_API!,
@@ -296,9 +299,9 @@ export const getUTCTime = (date: Date): string => {
 
 export const getUTCDate = (date: Date): string => {
   const utcDate = [
-    padSingleDigitNumberWithZero(date.getUTCDate()),
-    padSingleDigitNumberWithZero(date.getUTCMonth() + 1),
     padSingleDigitNumberWithZero(date.getUTCFullYear()),
+    padSingleDigitNumberWithZero(date.getUTCMonth() + 1),
+    padSingleDigitNumberWithZero(date.getUTCDate()),
   ];
 
   return utcDate.join("/");
@@ -375,3 +378,8 @@ export async function getTokenPrice(tokenId: string) {
   const data = await resp.json();
   return data[0].value;
 }
+
+export const ROUND_PAYOUT_MERKLE = "MERKLE";
+export const ROUND_PAYOUT_DIRECT = "DIRECT";
+export type RoundPayoutType = "MERKLE" | "DIRECT";
+export type RoundVisibilityType = "public" | "private";

@@ -63,12 +63,9 @@ import {
   getUTCTime,
   VerifiedCredentialState,
 } from "common";
-import { renderToHTML } from "common";
+import { renderToHTML, ROUND_PAYOUT_DIRECT } from "common";
 import { useDebugMode } from "../../hooks";
-import {
-  ROUND_PAYOUT_DIRECT,
-  getPayoutRoundDescription,
-} from "../common/Utils";
+import { getPayoutRoundDescription } from "../common/Utils";
 import moment from "moment";
 import ApplicationDirectPayout from "./ApplicationDirectPayout";
 
@@ -292,18 +289,8 @@ export default function ViewApplicationPage() {
 
               const response = await fetch(base64EncryptedString);
               const encryptedString: Blob = await response.blob();
-              let fixedChainName = chain.name;
-              switch (fixedChainName.toLowerCase()) {
-                case "pgn":
-                  fixedChainName = "publicGoodsNetwork";
-                  break;
-
-                case "arbitrum one":
-                  fixedChainName = "arbitrum";
-                  break;
-              }
               const lit = new Lit({
-                chain: fixedChainName.toLowerCase(),
+                chainId: chain.id,
                 contract: utils.getAddress(roundId),
               });
 

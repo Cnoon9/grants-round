@@ -1,6 +1,7 @@
 import { faker } from "@faker-js/faker";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ChakraProvider } from "@chakra-ui/react";
 import {
   RoundContext,
   RoundState,
@@ -15,6 +16,7 @@ import {
   Round,
 } from "./features/api/types";
 import { parseUnits } from "viem";
+import { ChainId } from "common";
 
 export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
   const applicationsStartTime = faker.date.soon();
@@ -59,7 +61,7 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
     token: faker.finance.ethereumAddress(),
     payoutStrategy: {
       id: "some-id",
-      strategyName: "MERKLE"
+      strategyName: "MERKLE",
     },
     votingStrategy: faker.finance.ethereumAddress(),
     ownedBy: faker.finance.ethereumAddress(),
@@ -91,10 +93,29 @@ export const makeApprovedProjectData = (
     status: ApplicationStatus.APPROVED,
     applicationIndex: faker.datatype.number(),
     roundId: faker.finance.ethereumAddress(),
-    chainId: 1,
+    chainId: ChainId.MAINNET,
     ...overrides,
   };
 };
+
+const makeTimestamp = (days?: number) =>
+  Math.floor(Number(faker.date.soon(days)) / 1000).toString();
+
+export const makeRoundMetadata = (
+  overrides?: Partial<RoundMetadata>
+): RoundMetadata => ({
+  name: faker.company.name(),
+  roundType: "public",
+  eligibility: {
+    description: faker.lorem.sentence(),
+    requirements: [
+      { requirement: faker.lorem.sentence() },
+      { requirement: faker.lorem.sentence() },
+    ],
+  },
+  programContractAddress: faker.finance.ethereumAddress(),
+  ...overrides,
+});
 
 export const makeRoundOverviewData = (
   overrides?: Partial<RoundOverview>,
@@ -102,7 +123,8 @@ export const makeRoundOverviewData = (
 ): RoundOverview => {
   return {
     id: faker.finance.ethereumAddress(),
-    chainId: "1",
+    chainId: ChainId.MAINNET,
+    createdAt: makeTimestamp(),
     roundMetaPtr: {
       protocol: 1,
       pointer: generateIpfsCid(),
@@ -111,25 +133,14 @@ export const makeRoundOverviewData = (
       protocol: 1,
       pointer: generateIpfsCid(),
     },
-    applicationsStartTime: faker.date.soon().toString(),
-    applicationsEndTime: faker.date.soon(10).toString(),
-    roundStartTime: faker.date.soon(20).toString(),
-    roundEndTime: faker.date.soon(30).toString(),
+    applicationsStartTime: makeTimestamp(),
+    applicationsEndTime: makeTimestamp(10),
+    roundStartTime: makeTimestamp(20),
+    roundEndTime: makeTimestamp(30),
     matchAmount: "1000000000000000000000000",
     token: faker.finance.ethereumAddress(),
-    roundMetadata: {
-      name: faker.company.name(),
-      roundType: "private",
-      eligibility: {
-        description: faker.lorem.sentence(),
-        requirements: [
-          { requirement: faker.lorem.sentence() },
-          { requirement: faker.lorem.sentence() },
-        ],
-      },
-      programContractAddress: faker.finance.ethereumAddress(),
-      ...roundMetadataOverrides,
-    },
+    roundMetadata: makeRoundMetadata(roundMetadataOverrides),
+    projects: Array.from({ length: 2 }).map((_, i) => ({ id: String(i) })),
     payoutStrategy: {
       id: "someid",
       strategyName: "MERKLE",
@@ -149,16 +160,18 @@ export const renderWithContext = (
   dispatch: any = vi.fn()
 ) =>
   render(
-    <MemoryRouter>
-      <RoundContext.Provider
-        value={{
-          state: { ...initialRoundState, ...roundStateOverrides },
-          dispatch,
-        }}
-      >
-        {ui}
-      </RoundContext.Provider>
-    </MemoryRouter>
+    <ChakraProvider>
+      <MemoryRouter>
+        <RoundContext.Provider
+          value={{
+            state: { ...initialRoundState, ...roundStateOverrides },
+            dispatch,
+          }}
+        >
+          {ui}
+        </RoundContext.Provider>
+      </MemoryRouter>
+    </ChakraProvider>
   );
 
 export const mockBalance = {

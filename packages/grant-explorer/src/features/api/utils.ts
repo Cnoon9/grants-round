@@ -1,9 +1,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { CartProject, IPFSObject, VotingToken, Round } from "./types";
-import { ChainId, graphQlEndpoints, RedstoneTokenIds } from "common";
+import {
+  ChainId,
+  graphQlEndpoints,
+  RedstoneTokenIds,
+  RoundPayoutType,
+} from "common";
 import { useSearchParams } from "react-router-dom";
-import { ROUND_PAYOUT_MERKLE, ROUND_PAYOUT_DIRECT } from "../../constants";
-import { zeroAddress } from "viem";
+import { ROUND_PAYOUT_MERKLE, ROUND_PAYOUT_DIRECT } from "common";
+import { getAddress, zeroAddress } from "viem";
 import { ethers } from "ethers";
 
 export function useDebugMode(): boolean {
@@ -24,6 +29,16 @@ export const CHAINS: Record<
     logo: string;
   }
 > = {
+  [ChainId.DEV1]: {
+    id: ChainId.DEV1,
+    name: "DEV1",
+    logo: "./logos/pgn-logo.svg",
+  },
+  [ChainId.DEV2]: {
+    id: ChainId.DEV2,
+    name: "DEV2",
+    logo: "./logos/pgn-logo.svg",
+  },
   [ChainId.PGN]: {
     id: ChainId.PGN,
     name: "PGN",
@@ -286,6 +301,16 @@ const PGN_MAINNET_TOKENS: VotingToken[] = [
     defaultForVoting: true,
     canVote: true,
   },
+  {
+    name: "DAI",
+    chainId: ChainId.PGN,
+    address: "0x6C121674ba6736644A7e73A8741407fE8a5eE5BA",
+    decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
+    defaultForVoting: false,
+    canVote: true,
+  },
 ];
 
 const ARBITRUM_TOKENS: VotingToken[] = [
@@ -349,12 +374,13 @@ const POLYGON_TOKENS: VotingToken[] = [
   {
     name: "USDC",
     chainId: ChainId.POLYGON,
-    address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
     decimal: 6,
     logo: TokenNamesAndLogos["USDC"],
     redstoneTokenId: RedstoneTokenIds["USDC"],
     defaultForVoting: false,
     canVote: true,
+    permitVersion: "2",
   },
 ];
 
@@ -371,8 +397,8 @@ const POLYGON_MUMBAI_TOKENS: VotingToken[] = [
   },
   {
     name: "USDC",
-    chainId: ChainId.POLYGON,
-    address: "0xe6b8a5cf854791412c1f6efc7caf629f5df1c747",
+    chainId: ChainId.POLYGON_MUMBAI,
+    address: "0x9999f7Fea5938fD3b1E26A12c3f2fb024e194f97",
     decimal: 6,
     logo: TokenNamesAndLogos["USDC"],
     redstoneTokenId: RedstoneTokenIds["USDC"],
@@ -448,6 +474,10 @@ export const votingTokens = [
 
 type VotingTokensMap = Record<ChainId, VotingToken[]>;
 export const votingTokensMap: VotingTokensMap = {
+  // FIXME: deploy tokens for local dev chains when we
+  // setup explorer to work fully in local
+  [ChainId.DEV1]: GOERLI_TESTNET_TOKENS,
+  [ChainId.DEV2]: GOERLI_TESTNET_TOKENS,
   [ChainId.GOERLI_CHAIN_ID]: GOERLI_TESTNET_TOKENS,
   [ChainId.MAINNET]: MAINNET_TOKENS,
   [ChainId.OPTIMISM_MAINNET_CHAIN_ID]: OPTIMISM_MAINNET_TOKENS,
@@ -477,6 +507,8 @@ export const getVotingTokenOptions = (chainId: ChainId): VotingToken[] =>
 const getGraphQLEndpoint = (chainId: ChainId) => `${graphQlEndpoints[chainId]}`;
 
 export const txExplorerLinks: Record<ChainId, string> = {
+  [ChainId.DEV1]: "",
+  [ChainId.DEV2]: "",
   [ChainId.MAINNET]: "https://etherscan.io/tx/",
   [ChainId.GOERLI_CHAIN_ID]: "https://goerli.etherscan.io/tx/",
   [ChainId.OPTIMISM_MAINNET_CHAIN_ID]: "https://optimistic.etherscan.io/tx/",
@@ -615,11 +647,19 @@ export const pinToIPFS = (obj: IPFSObject) => {
   }
 };
 
-export const getDaysLeft = (epochTime: number) => {
+export const getDaysLeft = (fromTimestamp?: string) => {
+  // Some timestamps are returned as overflowed (1.15e+77)
+  // We parse these into undefined to show as "No end date" rather than make the date diff calculation
+  if (
+    fromTimestamp === undefined ||
+    Number(fromTimestamp) > Number.MAX_SAFE_INTEGER
+  ) {
+    return undefined;
+  }
   const currentTimestamp = Math.floor(Date.now() / 1000); // current timestamp in seconds
   const secondsPerDay = 60 * 60 * 24; // number of seconds per day
 
-  const differenceInSeconds = epochTime - currentTimestamp;
+  const differenceInSeconds = Number(fromTimestamp) - currentTimestamp;
   const differenceInDays = Math.floor(differenceInSeconds / secondsPerDay);
 
   return differenceInDays;
@@ -650,7 +690,7 @@ export const isDirectRound = (round: Round) =>
 export const isInfiniteDate = (roundTime: Date) =>
   roundTime.toString() === "Invalid Date";
 
-export const getRoundType = (payoutStrategyName: string) => {
+export const getRoundType = (payoutStrategyName: RoundPayoutType) => {
   switch (payoutStrategyName) {
     case ROUND_PAYOUT_MERKLE:
       return "Quadratic Funding";
@@ -700,3 +740,15 @@ export const groupProjectsInCart = (
 
   return groupedCartProjects;
 };
+
+export function getPayoutToken(
+  token: string,
+  chainId: ChainId
+): VotingToken | undefined {
+  if (!ChainId[Number(chainId)]) {
+    throw new Error(`Couldn't find chainId: ${chainId}`);
+  }
+  return votingTokens.find(
+    (t) => t.chainId === Number(chainId) && t.address === getAddress(token)
+  );
+}
