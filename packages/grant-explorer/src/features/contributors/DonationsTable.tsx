@@ -1,5 +1,5 @@
 import { DetailedVote as Contribution } from "allo-indexer-client";
-import { PayoutToken } from "../api/types";
+import { VotingToken } from "../api/types";
 import {
   ChevronRightIcon,
   InformationCircleIcon,
@@ -13,7 +13,7 @@ import { formatUnits } from "viem";
 
 export function DonationsTable(props: {
   contributions: { chainId: ChainId; data: Contribution[] }[];
-  tokens: Record<string, PayoutToken>;
+  tokens: Record<string, VotingToken>;
   activeRound: boolean;
 }) {
   return (
@@ -55,7 +55,8 @@ export function DonationsTable(props: {
           props.contributions.map((chainContribution) => {
             const { chainId, data } = chainContribution;
             return data.map((contribution) => {
-              const token = props.tokens[contribution.token];
+              const tokenId = contribution.token.toLowerCase() + "-" + chainId;
+              const token = props.tokens[tokenId];
 
               let formattedAmount = "N/A";
 

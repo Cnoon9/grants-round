@@ -27,12 +27,18 @@ export type AppStatus =
   | "APPROVED"
   | "REJECTED"
   | "APPEAL"
-  | "FRAUD";
+  | "FRAUD"
+  | "RECEIVED";
 
 export type Application = {
   roundID: string;
   status: AppStatus;
+  inReview: boolean;
   chainId: ChainId;
+  metaPtr?: {
+    protocol: string;
+    pointer: string;
+  };
 };
 
 export type ProjectOwners = { [projectID: string]: string[] };

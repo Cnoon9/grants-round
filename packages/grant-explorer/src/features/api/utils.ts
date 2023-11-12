@@ -1,8 +1,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { CartProject, IPFSObject, PayoutToken } from "./types";
-import { ChainId, RedstoneTokenIds } from "common";
+import { CartProject, IPFSObject, VotingToken, Round } from "./types";
+import {
+  ChainId,
+  graphQlEndpoints,
+  RedstoneTokenIds,
+  RoundPayoutType,
+} from "common";
 import { useSearchParams } from "react-router-dom";
-import { zeroAddress } from "viem";
+import { ROUND_PAYOUT_MERKLE, ROUND_PAYOUT_DIRECT } from "common";
+import { getAddress, zeroAddress } from "viem";
 import { ethers } from "ethers";
 
 export function useDebugMode(): boolean {
@@ -17,8 +23,22 @@ export function useDebugMode(): boolean {
 
 export const CHAINS: Record<
   ChainId,
-  { id: ChainId; name: string; logo: string }
+  {
+    id: ChainId;
+    name: string;
+    logo: string;
+  }
 > = {
+  [ChainId.DEV1]: {
+    id: ChainId.DEV1,
+    name: "DEV1",
+    logo: "./logos/pgn-logo.svg",
+  },
+  [ChainId.DEV2]: {
+    id: ChainId.DEV2,
+    name: "DEV2",
+    logo: "./logos/pgn-logo.svg",
+  },
   [ChainId.PGN]: {
     id: ChainId.PGN,
     name: "PGN",
@@ -64,6 +84,26 @@ export const CHAINS: Record<
     name: "Arbitrum",
     logo: "./logos/arb-logo.svg",
   },
+  [ChainId.AVALANCHE]: {
+    id: ChainId.AVALANCHE,
+    name: "Avalanche",
+    logo: "/logos/avax-logo.svg",
+  },
+  [ChainId.FUJI]: {
+    id: ChainId.FUJI,
+    name: "Fuji (Avalanche Testnet)",
+    logo: "/logos/avax-logo.svg",
+  },
+  [ChainId.POLYGON]: {
+    id: ChainId.POLYGON,
+    name: "Polygon PoS",
+    logo: "./logos/pol-logo.svg",
+  },
+  [ChainId.POLYGON_MUMBAI]: {
+    id: ChainId.POLYGON_MUMBAI,
+    name: "Polygon Mumbai",
+    logo: "./logos/pol-logo.svg",
+  },
 };
 
 export const TokenNamesAndLogos = {
@@ -76,9 +116,11 @@ export const TokenNamesAndLogos = {
   PGN: "./logos/pgn-logo.svg",
   GcV: "./logos/fantom-gcv-logo.png",
   ARB: "./logos/arb-logo.svg",
+  AVAX: "./logos/avax-logo.svg",
+  MATIC: "./logos/pol-logo.svg",
 } as const;
 
-export const MAINNET_TOKENS: PayoutToken[] = [
+export const MAINNET_TOKENS: VotingToken[] = [
   {
     name: "DAI",
     chainId: ChainId.MAINNET,
@@ -101,7 +143,7 @@ export const MAINNET_TOKENS: PayoutToken[] = [
   },
 ];
 
-export const OPTIMISM_MAINNET_TOKENS: PayoutToken[] = [
+export const OPTIMISM_MAINNET_TOKENS: VotingToken[] = [
   {
     name: "DAI",
     chainId: ChainId.OPTIMISM_MAINNET_CHAIN_ID,
@@ -125,7 +167,7 @@ export const OPTIMISM_MAINNET_TOKENS: PayoutToken[] = [
   },
 ];
 
-const FANTOM_MAINNET_TOKENS: PayoutToken[] = [
+const FANTOM_MAINNET_TOKENS: VotingToken[] = [
   {
     name: "WFTM",
     chainId: ChainId.FANTOM_MAINNET_CHAIN_ID,
@@ -178,7 +220,7 @@ const FANTOM_MAINNET_TOKENS: PayoutToken[] = [
   },
 ];
 
-const GOERLI_TESTNET_TOKENS: PayoutToken[] = [
+const GOERLI_TESTNET_TOKENS: VotingToken[] = [
   {
     name: "USDC",
     chainId: ChainId.GOERLI_CHAIN_ID,
@@ -212,7 +254,7 @@ const GOERLI_TESTNET_TOKENS: PayoutToken[] = [
   },
 ];
 
-const FANTOM_TESTNET_TOKENS: PayoutToken[] = [
+const FANTOM_TESTNET_TOKENS: VotingToken[] = [
   {
     name: "DAI",
     chainId: ChainId.FANTOM_TESTNET_CHAIN_ID,
@@ -225,7 +267,7 @@ const FANTOM_TESTNET_TOKENS: PayoutToken[] = [
   },
 ];
 
-const PGN_TESTNET_TOKENS: PayoutToken[] = [
+const PGN_TESTNET_TOKENS: VotingToken[] = [
   {
     name: "TEST",
     chainId: ChainId.PGN_TESTNET,
@@ -248,7 +290,7 @@ const PGN_TESTNET_TOKENS: PayoutToken[] = [
   },
 ];
 
-const PGN_MAINNET_TOKENS: PayoutToken[] = [
+const PGN_MAINNET_TOKENS: VotingToken[] = [
   {
     name: "ETH",
     chainId: ChainId.PGN,
@@ -259,9 +301,19 @@ const PGN_MAINNET_TOKENS: PayoutToken[] = [
     defaultForVoting: true,
     canVote: true,
   },
+  {
+    name: "DAI",
+    chainId: ChainId.PGN,
+    address: "0x6C121674ba6736644A7e73A8741407fE8a5eE5BA",
+    decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
+    defaultForVoting: false,
+    canVote: true,
+  },
 ];
 
-const ARBITRUM_TOKENS: PayoutToken[] = [
+const ARBITRUM_TOKENS: VotingToken[] = [
   {
     name: "ETH",
     chainId: ChainId.ARBITRUM,
@@ -273,14 +325,15 @@ const ARBITRUM_TOKENS: PayoutToken[] = [
     canVote: true,
   },
   {
-    name: "DAI",
+    name: "USDC",
     chainId: ChainId.ARBITRUM,
-    address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-    decimal: 18,
-    logo: TokenNamesAndLogos["DAI"],
-    redstoneTokenId: RedstoneTokenIds["DAI"],
+    address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
     defaultForVoting: false,
     canVote: true,
+    permitVersion: "2",
   },
   {
     name: "ARB",
@@ -294,10 +347,10 @@ const ARBITRUM_TOKENS: PayoutToken[] = [
   },
 ];
 
-const ARBITRUM_GOERLI_TOKENS: PayoutToken[] = [
+const ARBITRUM_GOERLI_TOKENS: VotingToken[] = [
   {
     name: "ETH",
-    chainId: ChainId.PGN,
+    chainId: ChainId.ARBITRUM_GOERLI,
     address: zeroAddress,
     decimal: 18,
     logo: TokenNamesAndLogos["ETH"],
@@ -307,7 +360,103 @@ const ARBITRUM_GOERLI_TOKENS: PayoutToken[] = [
   },
 ];
 
-export const payoutTokens = [
+const POLYGON_TOKENS: VotingToken[] = [
+  {
+    name: "MATIC",
+    chainId: ChainId.POLYGON,
+    address: zeroAddress,
+    decimal: 18,
+    logo: TokenNamesAndLogos["MATIC"],
+    redstoneTokenId: RedstoneTokenIds["MATIC"],
+    defaultForVoting: true,
+    canVote: true,
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.POLYGON,
+    address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+    defaultForVoting: false,
+    canVote: true,
+    permitVersion: "2",
+  },
+];
+
+const POLYGON_MUMBAI_TOKENS: VotingToken[] = [
+  {
+    name: "MATIC",
+    chainId: ChainId.POLYGON_MUMBAI,
+    address: zeroAddress,
+    decimal: 18,
+    logo: TokenNamesAndLogos["MATIC"],
+    redstoneTokenId: RedstoneTokenIds["MATIC"],
+    defaultForVoting: true,
+    canVote: true,
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.POLYGON_MUMBAI,
+    address: "0x9999f7Fea5938fD3b1E26A12c3f2fb024e194f97",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+    defaultForVoting: false,
+    canVote: true,
+    permitVersion: "2",
+  },
+];
+
+const AVALANCHE_TOKENS: VotingToken[] = [
+  {
+    name: "AVAX",
+    chainId: ChainId.AVALANCHE,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["AVAX"],
+    redstoneTokenId: RedstoneTokenIds["AVAX"],
+    defaultForVoting: true,
+    canVote: true,
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.AVALANCHE,
+    address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+    defaultForVoting: false,
+    canVote: true,
+    permitVersion: "2",
+  },
+];
+
+const FUJI_TOKENS: VotingToken[] = [
+  {
+    name: "AVAX",
+    chainId: ChainId.AVALANCHE,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["AVAX"],
+    redstoneTokenId: RedstoneTokenIds["AVAX"],
+    defaultForVoting: true,
+    canVote: true,
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.AVALANCHE,
+    address: "0x5425890298aed601595a70ab815c96711a31bc65",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+    defaultForVoting: false,
+    canVote: true,
+    permitVersion: "2",
+  },
+];
+
+export const votingTokens = [
   ...MAINNET_TOKENS,
   ...OPTIMISM_MAINNET_TOKENS,
   ...FANTOM_MAINNET_TOKENS,
@@ -317,10 +466,18 @@ export const payoutTokens = [
   ...PGN_MAINNET_TOKENS,
   ...ARBITRUM_TOKENS,
   ...ARBITRUM_GOERLI_TOKENS,
+  ...AVALANCHE_TOKENS,
+  ...FUJI_TOKENS,
+  ...POLYGON_TOKENS,
+  ...POLYGON_MUMBAI_TOKENS,
 ];
 
-type PayoutTokensMap = Record<ChainId, PayoutToken[]>;
-export const payoutTokensMap: PayoutTokensMap = {
+type VotingTokensMap = Record<ChainId, VotingToken[]>;
+export const votingTokensMap: VotingTokensMap = {
+  // FIXME: deploy tokens for local dev chains when we
+  // setup explorer to work fully in local
+  [ChainId.DEV1]: GOERLI_TESTNET_TOKENS,
+  [ChainId.DEV2]: GOERLI_TESTNET_TOKENS,
   [ChainId.GOERLI_CHAIN_ID]: GOERLI_TESTNET_TOKENS,
   [ChainId.MAINNET]: MAINNET_TOKENS,
   [ChainId.OPTIMISM_MAINNET_CHAIN_ID]: OPTIMISM_MAINNET_TOKENS,
@@ -330,26 +487,14 @@ export const payoutTokensMap: PayoutTokensMap = {
   [ChainId.PGN_TESTNET]: PGN_TESTNET_TOKENS,
   [ChainId.ARBITRUM_GOERLI]: ARBITRUM_GOERLI_TOKENS,
   [ChainId.ARBITRUM]: ARBITRUM_TOKENS,
+  [ChainId.AVALANCHE]: AVALANCHE_TOKENS,
+  [ChainId.FUJI]: FUJI_TOKENS,
+  [ChainId.POLYGON]: POLYGON_TOKENS,
+  [ChainId.POLYGON_MUMBAI]: POLYGON_MUMBAI_TOKENS,
 };
 
-export const getPayoutTokenOptions = (chainId: ChainId): PayoutToken[] =>
-  payoutTokensMap[chainId];
-
-const graphQlEndpoints: Record<ChainId, string> = {
-  [ChainId.PGN]: process.env.REACT_APP_SUBGRAPH_PGN_API!,
-  [ChainId.GOERLI_CHAIN_ID]: process.env.REACT_APP_SUBGRAPH_GOERLI_API!,
-  [ChainId.PGN_TESTNET]: process.env.REACT_APP_SUBGRAPH_PGN_TESTNET_API!,
-  [ChainId.MAINNET]: process.env.REACT_APP_SUBGRAPH_MAINNET_API!,
-  [ChainId.OPTIMISM_MAINNET_CHAIN_ID]:
-    process.env.REACT_APP_SUBGRAPH_OPTIMISM_MAINNET_API!,
-  [ChainId.FANTOM_MAINNET_CHAIN_ID]:
-    process.env.REACT_APP_SUBGRAPH_FANTOM_MAINNET_API!,
-  [ChainId.FANTOM_TESTNET_CHAIN_ID]:
-    process.env.REACT_APP_SUBGRAPH_FANTOM_TESTNET_API!,
-  [ChainId.ARBITRUM_GOERLI]:
-    process.env.REACT_APP_SUBGRAPH_ARBITRUM_GOERLI_API!,
-  [ChainId.ARBITRUM]: process.env.REACT_APP_SUBGRAPH_ARBITRUM_API!,
-};
+export const getVotingTokenOptions = (chainId: ChainId): VotingToken[] =>
+  votingTokensMap[chainId];
 
 /**
  * Fetch subgraph network for provided web3 network
@@ -362,6 +507,8 @@ const graphQlEndpoints: Record<ChainId, string> = {
 const getGraphQLEndpoint = (chainId: ChainId) => `${graphQlEndpoints[chainId]}`;
 
 export const txExplorerLinks: Record<ChainId, string> = {
+  [ChainId.DEV1]: "",
+  [ChainId.DEV2]: "",
   [ChainId.MAINNET]: "https://etherscan.io/tx/",
   [ChainId.GOERLI_CHAIN_ID]: "https://goerli.etherscan.io/tx/",
   [ChainId.OPTIMISM_MAINNET_CHAIN_ID]: "https://optimistic.etherscan.io/tx/",
@@ -371,6 +518,10 @@ export const txExplorerLinks: Record<ChainId, string> = {
   [ChainId.PGN]: "https://explorer.publicgoods.network/tx/",
   [ChainId.ARBITRUM_GOERLI]: "https://goerli.arbiscan.io/tx/",
   [ChainId.ARBITRUM]: "https://arbiscan.io/tx/",
+  [ChainId.POLYGON]: "https://polygonscan.io/tx/",
+  [ChainId.POLYGON_MUMBAI]: "https://mumbai.polygonscan.com/tx/",
+  [ChainId.FUJI]: "https://snowtrace.io/tx/",
+  [ChainId.AVALANCHE]: "https://testnet.snowtrace.io/txt/",
 };
 
 /**
@@ -496,16 +647,25 @@ export const pinToIPFS = (obj: IPFSObject) => {
   }
 };
 
-export const getDaysLeft = (epochTime: number) => {
+export const getDaysLeft = (fromTimestamp?: string) => {
+  // Some timestamps are returned as overflowed (1.15e+77)
+  // We parse these into undefined to show as "No end date" rather than make the date diff calculation
+  if (
+    fromTimestamp === undefined ||
+    Number(fromTimestamp) > Number.MAX_SAFE_INTEGER
+  ) {
+    return undefined;
+  }
   const currentTimestamp = Math.floor(Date.now() / 1000); // current timestamp in seconds
   const secondsPerDay = 60 * 60 * 24; // number of seconds per day
 
-  const differenceInSeconds = epochTime - currentTimestamp;
+  const differenceInSeconds = Number(fromTimestamp) - currentTimestamp;
   const differenceInDays = Math.floor(differenceInSeconds / secondsPerDay);
 
   return differenceInDays;
 };
 
+/* TODO: remove this and get the production chains automatically */
 export function getChainIds(): number[] {
   const isProduction = process.env.REACT_APP_ENV === "production";
   if (isProduction) {
@@ -515,6 +675,8 @@ export function getChainIds(): number[] {
       Number(ChainId.FANTOM_MAINNET_CHAIN_ID),
       Number(ChainId.PGN),
       Number(ChainId.ARBITRUM),
+      Number(ChainId.AVALANCHE),
+      Number(ChainId.POLYGON),
     ];
   } else {
     return Object.values(ChainId)
@@ -522,6 +684,25 @@ export function getChainIds(): number[] {
       .filter((id) => !isNaN(id));
   }
 }
+
+export const isDirectRound = (round: Round) =>
+  round.payoutStrategy.strategyName === ROUND_PAYOUT_DIRECT;
+export const isInfiniteDate = (roundTime: Date) =>
+  roundTime.toString() === "Invalid Date";
+
+export const getRoundType = (payoutStrategyName: RoundPayoutType) => {
+  switch (payoutStrategyName) {
+    case ROUND_PAYOUT_MERKLE:
+      return "Quadratic Funding";
+      break;
+    case ROUND_PAYOUT_DIRECT:
+      return "Direct Grants";
+      break;
+    default:
+      return payoutStrategyName;
+      break;
+  }
+};
 
 type GroupedCartProjects = {
   [chainId: number]: {
@@ -559,3 +740,15 @@ export const groupProjectsInCart = (
 
   return groupedCartProjects;
 };
+
+export function getPayoutToken(
+  token: string,
+  chainId: ChainId
+): VotingToken | undefined {
+  if (!ChainId[Number(chainId)]) {
+    throw new Error(`Couldn't find chainId: ${chainId}`);
+  }
+  return votingTokens.find(
+    (t) => t.chainId === Number(chainId) && t.address === getAddress(token)
+  );
+}

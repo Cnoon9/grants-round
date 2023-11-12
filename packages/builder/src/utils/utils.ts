@@ -6,6 +6,9 @@ import { global } from "../global";
 import { AddressType, Metadata, Project } from "../types";
 import gnosisABI from "../contracts/abis/gnosis.json";
 
+export const ROUND_PAYOUT_MERKLE = "MERKLE";
+export const ROUND_PAYOUT_DIRECT = "DIRECT";
+
 export const parseRoundToApply = (
   s?: string
 ): { chainID?: string; roundAddress?: string } => {
@@ -73,7 +76,7 @@ export const getProviderByChainId = (chainId: ChainId) => {
   }
 
   // TODO: Create a more robust RPC here to avoid fails
-  return ethers.getDefaultProvider(chainConfig.rpcUrls.default);
+  return ethers.getDefaultProvider(chainConfig.rpcUrls.default.http[0]);
 };
 
 export const getAddressType = async (address: string): Promise<AddressType> => {

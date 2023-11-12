@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import { useMemo, useState } from "react";
 import { ChainId } from "./chains";
-
+import z from "zod";
 export * from "./icons";
 export * from "./markdown";
 
@@ -10,27 +10,28 @@ export { ChainId };
 export enum PassportState {
   NOT_CONNECTED,
   INVALID_PASSPORT,
-  MATCH_ELIGIBLE,
-  MATCH_INELIGIBLE,
+  SCORE_AVAILABLE,
   LOADING,
   ERROR,
   INVALID_RESPONSE,
 }
 
-type PassportEvidence = {
-  type: string;
-  rawScore: string;
-  threshold: string;
-};
+const PassportEvidenceSchema = z.object({
+  type: z.string().nullish(),
+  rawScore: z.coerce.number(),
+  threshold: z.string().nullish(),
+});
 
-export type PassportResponse = {
-  address?: string;
-  score?: string;
-  status?: string;
-  evidence?: PassportEvidence;
-  error?: string;
-  detail?: string;
-};
+export type PassportResponse = z.infer<typeof PassportResponseSchema>;
+
+export const PassportResponseSchema = z.object({
+  address: z.string().nullish(),
+  score: z.string().nullish(),
+  status: z.string().nullish(),
+  evidence: PassportEvidenceSchema.nullish(),
+  error: z.string().nullish(),
+  detail: z.string().nullish(),
+});
 
 /**
  * Endpoint used to fetch the passport score for a given address
@@ -96,7 +97,9 @@ export type Payout = {
   createdAt: string;
 };
 
-const graphQlEndpoints: Record<ChainId, string> = {
+export const graphQlEndpoints: Record<ChainId, string> = {
+  [ChainId.DEV1]: process.env.REACT_APP_SUBGRAPH_DEV1_API!,
+  [ChainId.DEV2]: process.env.REACT_APP_SUBGRAPH_DEV2_API!,
   [ChainId.PGN]: process.env.REACT_APP_SUBGRAPH_PGN_API!,
   [ChainId.GOERLI_CHAIN_ID]: process.env.REACT_APP_SUBGRAPH_GOERLI_API!,
   [ChainId.PGN_TESTNET]: process.env.REACT_APP_SUBGRAPH_PGN_TESTNET_API!,
@@ -110,6 +113,10 @@ const graphQlEndpoints: Record<ChainId, string> = {
   [ChainId.ARBITRUM_GOERLI]:
     process.env.REACT_APP_SUBGRAPH_ARBITRUM_GOERLI_API!,
   [ChainId.ARBITRUM]: process.env.REACT_APP_SUBGRAPH_ARBITRUM_API!,
+  [ChainId.FUJI]: process.env.REACT_APP_SUBGRAPH_FUJI_API!,
+  [ChainId.AVALANCHE]: process.env.REACT_APP_SUBGRAPH_AVALANCHE_API!,
+  [ChainId.POLYGON]: process.env.REACT_APP_SUBGRAPH_POLYGON_API!,
+  [ChainId.POLYGON_MUMBAI]: process.env.REACT_APP_SUBGRAPH_POLYGON_MUMBAI_API!,
 };
 
 /**
@@ -267,12 +274,16 @@ export const convertStatusToText = (
 };
 
 /** Returns true if the current javascript context is running inside a Jest test  */
-export const isJestRunning = () => process.env.JEST_WORKER_ID !== undefined;
+export const isJestRunning = () => process.env["JEST_WORKER_ID"] !== undefined;
 
 export const padSingleDigitNumberWithZero = (i: number): string =>
   i < 10 ? "0" + i : i.toString();
 
 export const formatUTCDateAsISOString = (date: Date): string => {
+  // @ts-expect-error remove when DG support is merged
+  if (isNaN(date)) {
+    return "";
+  }
   const isoString = date.toISOString();
   return isoString.slice(0, 10).replace(/-/g, "/");
 };
@@ -288,9 +299,9 @@ export const getUTCTime = (date: Date): string => {
 
 export const getUTCDate = (date: Date): string => {
   const utcDate = [
-    padSingleDigitNumberWithZero(date.getUTCDate()),
-    padSingleDigitNumberWithZero(date.getUTCMonth() + 1),
     padSingleDigitNumberWithZero(date.getUTCFullYear()),
+    padSingleDigitNumberWithZero(date.getUTCMonth() + 1),
+    padSingleDigitNumberWithZero(date.getUTCDate()),
   ];
 
   return utcDate.join("/");
@@ -307,7 +318,11 @@ export const RedstoneTokenIds = {
   ETH: "ETH",
   ARB: "ARB",
   BUSD: "BUSD",
-};
+  GTC: "GTC",
+  MATIC: "MATIC",
+  AVAX: "AVAX",
+  CVP: "CVP",
+} as const;
 
 export const useTokenPrice = (tokenId: string | undefined) => {
   const [tokenPrice, setTokenPrice] = useState<number>();
@@ -363,3 +378,8 @@ export async function getTokenPrice(tokenId: string) {
   const data = await resp.json();
   return data[0].value;
 }
+
+export const ROUND_PAYOUT_MERKLE = "MERKLE";
+export const ROUND_PAYOUT_DIRECT = "DIRECT";
+export type RoundPayoutType = "MERKLE" | "DIRECT";
+export type RoundVisibilityType = "public" | "private";

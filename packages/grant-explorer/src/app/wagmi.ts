@@ -10,44 +10,10 @@ import {
   walletConnectWallet,
   metaMaskWallet,
 } from "@rainbow-me/rainbowkit/wallets";
-import {
-  mainnet,
-  goerli,
-  fantom,
-  fantomTestnet,
-  optimism,
-  Chain,
-} from "wagmi/chains";
 import { configureChains, createConfig } from "wagmi";
-
-import { pgnTestnet, pgn } from "common/src/chains";
 import { publicProvider } from "wagmi/providers/public";
 import { infuraProvider } from "wagmi/providers/infura";
-import { arbitrumGoerli, arbitrum } from "viem/chains";
-
-const testnetChains = () => {
-  return [
-    goerli,
-    { ...fantomTestnet, iconUrl: "/logos/fantom-logo.svg" },
-    pgnTestnet,
-    arbitrumGoerli,
-  ];
-};
-
-const mainnetChains = () => {
-  return [
-    mainnet,
-    optimism,
-    pgn,
-    arbitrum,
-    { ...fantom, iconUrl: "/logos/fantom-logo.svg" },
-  ];
-};
-
-export const allChains: Chain[] =
-  process.env.REACT_APP_ENV === "development"
-    ? [...testnetChains(), ...mainnetChains()]
-    : [...mainnetChains()];
+import { allChains } from "./chainConfig";
 
 export const { chains, publicClient, webSocketPublicClient } = configureChains(
   allChains,
@@ -57,10 +23,8 @@ export const { chains, publicClient, webSocketPublicClient } = configureChains(
   ]
 );
 
-/* TODO: remove hardcoded value once we have environment variables validation */
-const projectId =
-  process.env.REACT_APP_WALLETCONNECT_PROJECT_ID ??
-  "2685061cae0bcaf2b244446153eda9e1";
+/** We perform environment variable verification at buildtime, so all process.env properties are guaranteed to be strings */
+const projectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID as string;
 
 const { wallets } = getDefaultWallets({
   appName: "Grant Explorer",
@@ -68,8 +32,6 @@ const { wallets } = getDefaultWallets({
   chains,
 });
 
-// Custom wallet connectors: more can be added by going here:
-// https://www.rainbowkit.com/docs/custom-wallet-list
 const connectors = connectorsForWallets([
   {
     ...wallets,

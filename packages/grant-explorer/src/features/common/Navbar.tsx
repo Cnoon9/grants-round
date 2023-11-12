@@ -1,17 +1,13 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ReactComponent as GitcoinLogo } from "../../assets/gitcoinlogo-black.svg";
 import { ReactComponent as GrantsExplorerLogo } from "../../assets/topbar-logos-black.svg";
-import { useNavigate } from "react-router-dom";
-import {
-  RoundsSubNav,
-  Round as NavRound,
-} from "common/src/components/RoundsSubNav";
 import NavbarCart from "./NavbarCart";
 import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useCartStorage } from "../../store";
 import { Link } from "react-router-dom";
+import { PassportWidget } from "./PassportWidget";
 
 export interface NavbarProps {
   customBackground?: string;
@@ -21,7 +17,6 @@ export interface NavbarProps {
 export default function Navbar(props: NavbarProps) {
   /** This part keeps the store in sync between tabs */
   const store = useCartStorage();
-  const navigate = useNavigate();
 
   const updateStore = () => {
     useCartStorage.persist.rehydrate();
@@ -42,7 +37,9 @@ export default function Navbar(props: NavbarProps) {
   const { address: walletAddress } = useAccount();
 
   return (
-    <nav className={`bg-white fixed w-full z-10 ${props.customBackground}`}>
+    <nav
+      className={`bg-white/5 backdrop-blur-md fixed w-full z-20 shadow-[0_4px_24px_0px_rgba(0,0,0,0.08)] ${props.customBackground}`}
+    >
       <div className="mx-auto px-4 sm:px-6 lg:px-20">
         <div className="flex justify-between h-16">
           <div className="flex">
@@ -59,6 +56,14 @@ export default function Navbar(props: NavbarProps) {
             </Link>
           </div>
           <div className="flex items-center gap-6">
+            <Link to="/rounds" className="font-medium hover:underline">
+              Explore rounds
+            </Link>
+            {walletAddress && (
+              <div data-testid="passport-widget">
+                <PassportWidget />
+              </div>
+            )}
             {showWalletInteraction && (
               <div>
                 <div
@@ -91,11 +96,6 @@ export default function Navbar(props: NavbarProps) {
           </div>
         </div>
       </div>
-      <RoundsSubNav
-        onClick={(round: NavRound) => {
-          navigate(`/round/${round.chainId}/${round.id}`);
-        }}
-      />
     </nav>
   );
 }

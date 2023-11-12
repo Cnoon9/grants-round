@@ -11,7 +11,7 @@ import { errorModalDelayMs } from "../../constants";
 import {
   batchDistributeFunds,
   useGroupProjectsByPaymentStatus,
-} from "../api/payoutStrategy/merklePayoutStrategy";
+} from "../api/payoutStrategy/payoutStrategy";
 import {
   MatchingStatsData,
   ProgressStatus,
@@ -100,8 +100,7 @@ function FinalizedRoundContent(props: { round: Round }) {
   const [price, setPrice] = useState<number>(0);
 
   const matchingFundPayoutToken: PayoutToken = payoutTokens.filter(
-    (t) =>
-      t.address.toLocaleLowerCase() == props.round.token.toLocaleLowerCase()
+    (t) => t.address.toLowerCase() == props.round.token.toLowerCase()
   )[0];
 
   const { data, error, loading } = useTokenPrice(

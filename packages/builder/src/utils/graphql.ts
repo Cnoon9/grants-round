@@ -1,20 +1,4 @@
-import { ChainId } from "common";
-
-const graphQlEndpoints: Record<ChainId, string> = {
-  [ChainId.MAINNET]: process.env.REACT_APP_SUBGRAPH_URL_MAINNET!,
-  [ChainId.GOERLI_CHAIN_ID]: process.env.REACT_APP_SUBGRAPH_URL_GOERLI!,
-  [ChainId.OPTIMISM_MAINNET_CHAIN_ID]:
-    process.env.REACT_APP_SUBGRAPH_URL_OPTIMISM_MAINNET!,
-  [ChainId.FANTOM_MAINNET_CHAIN_ID]:
-    process.env.REACT_APP_SUBGRAPH_URL_FANTOM_MAINNET!,
-  [ChainId.FANTOM_TESTNET_CHAIN_ID]:
-    process.env.REACT_APP_SUBGRAPH_URL_FANTOM_TESTNET!,
-  [ChainId.PGN_TESTNET]: process.env.REACT_APP_SUBGRAPH_URL_PGN_TESTNET!,
-  [ChainId.PGN]: process.env.REACT_APP_SUBGRAPH_URL_PGN!,
-  [ChainId.ARBITRUM_GOERLI]:
-    process.env.REACT_APP_SUBGRAPH_ARBITRUM_GOERLI_API!,
-  [ChainId.ARBITRUM]: process.env.REACT_APP_SUBGRAPH_ARBITRUM_API!,
-};
+import { ChainId, graphQlEndpoints } from "common";
 
 /**
  * Fetch subgraph uri for a given chain id

@@ -6,16 +6,18 @@ import { loadRound } from "../../actions/rounds";
 import { RootState } from "../../reducers";
 import { AppStatus } from "../../reducers/projects";
 import { roundApplicationViewPath } from "../../routes";
-import { RoundSupport } from "../../types";
-import { formatDateFromSecs } from "../../utils/components";
+import { Round, RoundSupport, ApplicationCardType } from "../../types";
+import { formatDateFromSecs, isInfinite } from "../../utils/components";
 import { getNetworkIcon, networkPrettyName } from "../../utils/wallet";
+import { PayoutStrategy } from "../../reducers/rounds";
+import { ROUND_PAYOUT_DIRECT } from "../../utils/utils";
 
 export default function ApplicationCard({
   applicationData,
 }: {
-  applicationData: any;
+  applicationData: ApplicationCardType;
 }) {
-  const [roundData, setRoundData] = useState<any>();
+  const [roundData, setRoundData] = useState<Round>();
   const dispatch = useDispatch();
   const props = useSelector((state: RootState) => {
     const roundState = state.rounds[applicationData.roundID];
@@ -29,20 +31,26 @@ export default function ApplicationCard({
       Number(applicationData.chainId)
     );
 
+    const isDirectRound = round && round.payoutStrategy === ROUND_PAYOUT_DIRECT;
+
     return {
       round,
+      isDirectRound,
       support,
       applicationChainName,
       applicationChainIconUri,
     };
   });
 
-  const renderApplicationDate = () => (
-    <>
-      {formatDateFromSecs(roundData?.roundStartTime)} -{" "}
-      {formatDateFromSecs(roundData?.roundEndTime)}
-    </>
-  );
+  const renderApplicationDate = () =>
+    roundData && (
+      <>
+        {formatDateFromSecs(roundData.applicationsStartTime)} -{" "}
+        {!isInfinite(roundData.applicationsEndTime)
+          ? formatDateFromSecs(roundData.applicationsEndTime)
+          : "No End Date"}
+      </>
+    );
 
   useEffect(() => {
     if (applicationData.roundID !== undefined) {
@@ -56,6 +64,58 @@ export default function ApplicationCard({
     }
   }, [props.round]);
 
+  const renderRoundBadge = () => {
+    let colorScheme:
+      | {
+          bg: string;
+          text: string;
+        }
+      | undefined;
+
+    switch (roundData?.payoutStrategy as PayoutStrategy) {
+      case "MERKLE":
+        colorScheme = {
+          bg: "#E6FFF9",
+          text: "gitcoin-grey-500",
+        };
+        break;
+      case "DIRECT":
+        colorScheme = {
+          bg: "#FDDEE4",
+          text: "gitcoin-grey-500",
+        };
+        break;
+      default:
+        colorScheme = undefined;
+        break;
+    }
+
+    const roundPayoutStrategy = roundData?.payoutStrategy;
+
+    return (
+      <span>
+        <Badge
+          backgroundColor={colorScheme?.bg}
+          className="max-w-fit"
+          borderRadius="full"
+          p={2}
+          textTransform="inherit"
+        >
+          {roundPayoutStrategy === "MERKLE" ? (
+            <span className={`text-${colorScheme?.text} text-sm`}>
+              Quadratic Funding
+            </span>
+          ) : null}
+          {roundPayoutStrategy === "DIRECT" ? (
+            <span className={`text-${colorScheme?.text} text-sm`}>
+              Direct Grant
+            </span>
+          ) : null}
+        </Badge>
+      </span>
+    );
+  };
+
   const renderApplicationBadge = () => {
     let colorScheme:
       | {
@@ -63,7 +123,7 @@ export default function ApplicationCard({
           text: string;
         }
       | undefined;
-    switch (applicationData?.application.status as AppStatus) {
+    switch (applicationData.application.status as AppStatus) {
       case "APPROVED":
         colorScheme = {
           bg: "#E6FFF9",
@@ -82,10 +142,20 @@ export default function ApplicationCard({
           bg: "#E2E0E7",
         };
         break;
+      case "RECEIVED":
+        colorScheme = {
+          text: "gitcoin-grey-500",
+          bg: "#E2E0E7",
+        };
+        break;
       default:
         colorScheme = undefined;
         break;
     }
+
+    const applicationStatus = applicationData.application.status;
+    const isDirectRound = props.round?.payoutStrategy === ROUND_PAYOUT_DIRECT;
+    const applicationInReview = applicationData.application.inReview;
 
     return (
       <Badge
@@ -95,18 +165,28 @@ export default function ApplicationCard({
         p={2}
         textTransform="inherit"
       >
-        {applicationData?.application.status === "REJECTED" ? (
-          <span className={`text-${colorScheme?.text} text-sm`}>Rejected</span>
+        {applicationStatus === "PENDING" &&
+        isDirectRound &&
+        !applicationInReview ? (
+          <span className={`text-${colorScheme?.text} text-sm`}>Received</span>
         ) : null}
-        {applicationData?.application.status === "PENDING" ? (
+        {(applicationStatus === "PENDING" && !isDirectRound) ||
+        (isDirectRound && applicationInReview) ? (
           <span className={`text-${colorScheme?.text} text-sm`}>In Review</span>
         ) : null}
-        {applicationData?.application.status === "APPROVED" ? (
+        {applicationStatus === "REJECTED" ? (
+          <span className={`text-${colorScheme?.text} text-sm`}>Rejected</span>
+        ) : null}
+        {applicationStatus === "APPROVED" ? (
           <span className={`text-${colorScheme?.text} text-sm`}>Approved</span>
         ) : null}
       </Badge>
     );
   };
+
+  const hasProperStatus =
+    applicationData.application.inReview ||
+    applicationData.application.status === "APPROVED";
 
   return (
     <Box
@@ -133,28 +213,31 @@ export default function ApplicationCard({
           <div className="mb-1 text-sm">{props.round?.roundMetadata.name}</div>
           {roundData ? <span>{renderApplicationDate()}</span> : <Spinner />}
         </Box>
+        <Box className="pl-2 mt-2 md:mt-0">{renderRoundBadge()}</Box>
         <Box className="pl-2 mt-2 md:mt-0">{renderApplicationBadge()}</Box>
       </div>
       {props.support && (
         <Box p={2} className="mt-4 text-sm">
-          <p>
-            Have any questions about your grant round application?{" "}
-            <a
-              className="text-purple-500"
-              target="_blank"
-              href={`${props.support.type === "Email" ? "mailto:" : ""}${
-                props.support.info
-              }`}
-              rel="noreferrer"
-            >
-              Contact the {props.round?.programName} support team.
-            </a>
-          </p>
+          {(!props.isDirectRound || hasProperStatus) && (
+            <p>
+              Have any questions about your grant round application?{" "}
+              <a
+                className="text-purple-500"
+                target="_blank"
+                href={`${props.support.type === "Email" ? "mailto:" : ""}${
+                  props.support.info
+                }`}
+                rel="noreferrer"
+              >
+                Contact the {props.round?.programName} support team.
+              </a>
+            </p>
+          )}
           <Link
             to={roundApplicationViewPath(
-              applicationData.chainId,
+              applicationData.chainId.toString(),
               applicationData.roundID,
-              applicationData.application.metaPtr.pointer
+              applicationData.application.metaPtr?.pointer || ""
             )}
           >
             <Button

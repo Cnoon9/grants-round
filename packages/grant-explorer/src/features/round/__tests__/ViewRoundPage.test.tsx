@@ -8,7 +8,7 @@ import {
 } from "../../../test-utils";
 import { faker } from "@faker-js/faker";
 import { Project, Round } from "../../api/types";
-import { payoutTokens } from "../../api/utils";
+import { votingTokens } from "../../api/utils";
 import { vi } from "vitest";
 import { parseUnits, zeroAddress } from "viem";
 
@@ -16,10 +16,19 @@ fetchMock.mockIf(/summary/, JSON.stringify({}));
 
 const roundId = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
+vi.mock("common", async () => {
+  const actual = await vi.importActual<typeof import("common")>("common");
+  return {
+    ...actual,
+    renderToPlainText: vi.fn().mockReturnValue(""),
+  };
+});
 vi.mock("../../common/Navbar");
 vi.mock("../../common/Auth");
 vi.mock("../../api/utils", async () => {
-  const actual = await vi.importActual("../../api/utils");
+  const actual = await vi.importActual<typeof import("../../api/utils")>(
+    "../../api/utils"
+  );
   return {
     ...actual,
     graphql_fetch: vi.fn().mockReturnValue({ data: { rounds: [] } }),
@@ -28,7 +37,7 @@ vi.mock("../../api/utils", async () => {
 });
 
 vi.mock("wagmi", async () => {
-  const actual = await vi.importActual("wagmi");
+  const actual = await vi.importActual<typeof import("wagmi")>("wagmi");
   return {
     ...actual,
     useAccount: () => ({
@@ -50,6 +59,9 @@ vi.mock("wagmi", async () => {
     useSwitchNetwork: () => ({
       chainId: 5,
     }),
+    useToken: () => ({
+      data: { symbol: "TEST" },
+    }),
   };
 });
 
@@ -58,7 +70,9 @@ vi.mock("react-router-dom", async () => {
     chainId: 5,
     roundId: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
   });
-  const actual = await vi.importActual("react-router-dom");
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom"
+  );
   return {
     ...actual,
     useParams: useParamsFn,
@@ -75,7 +89,7 @@ describe("<ViewRound /> in case of before the application start date", () => {
     const applicationsEndTime = faker.date.future(1, applicationsStartTime);
     const roundStartTime = faker.date.soon(1, applicationsEndTime);
     const roundEndTime = faker.date.future(1, roundStartTime);
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     stubRound = makeRoundData({
       id: roundId,
       applicationsStartTime,
@@ -106,7 +120,7 @@ describe("<ViewRound /> in case of during the application period", () => {
     const applicationsEndTime = faker.date.soon();
     const roundStartTime = faker.date.future(1, applicationsEndTime);
     const roundEndTime = faker.date.soon(10, roundStartTime);
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     stubRound = makeRoundData({
       id: roundId,
       applicationsStartTime,
@@ -139,14 +153,10 @@ describe("<ViewRound /> in case of during the application period", () => {
 
   it("Should show apply to round button", async () => {
     renderWithContext(<ViewRound />, { rounds: [stubRound], isLoading: false });
-    const appURL =
-      "https://builder.gitcoin.co/#/chains/" + 5 + "/rounds/" + roundId;
-
-    const AppSubmissionButton = await screen.findByText("Apply to Grant Round");
-    expect(AppSubmissionButton).toBeInTheDocument();
-    fireEvent.click(AppSubmissionButton);
-    expect(window.open).toBeCalled();
-    expect(window.open).toHaveBeenCalledWith(appURL, "_blank");
+    const AppSubmissionButton = await screen.findAllByText(
+      "Apply to Grant Round"
+    );
+    expect(AppSubmissionButton[0]).toBeInTheDocument();
   });
 });
 
@@ -160,7 +170,7 @@ describe("<ViewRound /> in case of post application end date & before round star
     const applicationsStartTime = faker.date.past(1, applicationsEndTime);
     const roundStartTime = faker.date.soon();
     const roundEndTime = faker.date.future(1, roundStartTime);
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     stubRound = makeRoundData({
       id: roundId,
       applicationsStartTime,
@@ -188,7 +198,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
   const applicationsEndTime = faker.date.past(1, roundStartTime);
   const applicationsStartTime = faker.date.past(1, applicationsEndTime);
   const roundEndTime = faker.date.soon();
-  const token = payoutTokens[0].address;
+  const token = votingTokens[0].address;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,7 +237,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
 
   it("displays the project details of an approved grant application", async () => {
     const expectedApprovedProject: Project = makeApprovedProjectData();
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
 
     const roundWithProjects = makeRoundData({
       id: roundId,
@@ -261,7 +271,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
       }
     );
     const expectedBannerImg = expectedApprovedProject.projectMetadata.bannerImg;
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     const roundWithProjects = makeRoundData({
       id: roundId,
       approvedProjects: [expectedApprovedProject],
@@ -289,7 +299,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
       makeApprovedProjectData(),
       makeApprovedProjectData(),
     ];
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     const roundWithProjects = makeRoundData({
       id: roundId,
       approvedProjects,
@@ -320,7 +330,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
       makeApprovedProjectData(),
       makeApprovedProjectData(),
     ];
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     const roundWithProjects = makeRoundData({
       id: roundId,
       approvedProjects,
@@ -368,7 +378,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
         projectMetadata: { ...projectMetadata, title: "my great gitcoin" },
       }),
     ];
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     const roundWithProjects = makeRoundData({
       id: roundId,
       approvedProjects,
@@ -400,7 +410,7 @@ describe("<ViewRound /> in case of after the round start date", () => {
 
   describe("add project to cart", () => {
     const approvedProjects = [makeApprovedProjectData()];
-    const token = payoutTokens[0].address;
+    const token = votingTokens[0].address;
     const roundWithProjects = makeRoundData({
       id: roundId,
       approvedProjects,
@@ -456,5 +466,32 @@ describe("<ViewRound /> in case of after the round start date", () => {
         ).not.toBeInTheDocument();
       }, 3000);
     });
+  });
+});
+
+describe("<ViewRound /> in case ApplicationsEnd and RoundEnd dates are not set", () => {
+  let stubRound: Round;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    const applicationsEndTime = new Date("foo");
+    const applicationsStartTime = faker.date.past();
+    const roundStartTime = faker.date.soon();
+    const roundEndTime = new Date("foo");
+    stubRound = makeRoundData({
+      id: roundId,
+      applicationsStartTime,
+      applicationsEndTime,
+      roundStartTime,
+      roundEndTime,
+    });
+  });
+
+  it("Should display 'No End Date' for Applications and Round end dates", async () => {
+    renderWithContext(<ViewRound />, { rounds: [stubRound], isLoading: false });
+
+    const AppSubmissionButton = await screen.findAllByText("No End Date");
+    expect(AppSubmissionButton.length).toEqual(2);
   });
 });

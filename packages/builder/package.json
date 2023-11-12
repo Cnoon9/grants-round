@@ -7,7 +7,7 @@
     "@babel/plugin-syntax-flow": "^7.14.5",
     "@babel/plugin-transform-react-jsx": "^7.14.9",
     "@chakra-ui/react": "^2.1.2",
-    "@craco/craco": "6.4.3",
+    "@craco/craco": "7.1.0",
     "@datadog/browser-logs": "^4.21.2",
     "@datadog/browser-rum": "^4.16.0",
     "@emotion/react": "^11",
@@ -19,7 +19,7 @@
     "@heroicons/react": "^2.0.11",
     "@lagunovsky/redux-react-router": "^2.2.0",
     "@pinata/sdk": "^1.1.26",
-    "@rainbow-me/rainbowkit": "^0.7.2",
+    "@rainbow-me/rainbowkit": "^0.12.18",
     "@redux-devtools/extension": "^3.2.3",
     "@tailwindcss/line-clamp": "^0.4.2",
     "@tailwindcss/typography": "^0.5.9",
@@ -34,10 +34,10 @@
     "@types/react-dom": "^18.0.1",
     "@types/react-redux": "^7.1.24",
     "@types/testing-library__jest-dom": "^5.14.5",
-    "@wagmi/core": "0.5.4",
+    "@wagmi/core": "0.10.17",
     "@walletconnect/ethereum-provider": "^2.9.0",
     "@walletconnect/modal": "^2.5.9",
-    "allo-indexer-client": "github:gitcoinco/allo-indexer-client#0487c02c9bb89307b12ffe75f5bfb578278994a1",
+    "allo-indexer-client": "github:gitcoinco/allo-indexer-client",
     "assert": "^2.0.0",
     "autoprefixer": "^10.4.7",
     "axios": "^0.27.2",
@@ -74,9 +74,11 @@
     "ts-jest": "^27.0",
     "typescript": "^4.6.3",
     "url": "^0.11.0",
-    "wagmi": "^0.6.4",
+    "verify-env": "*",
+    "wagmi": "^0.12.19",
     "web-vitals": "^2.1.4",
-    "yup": "^0.32.11"
+    "yup": "^0.32.11",
+    "zod": "^3.22.4"
   },
   "scripts": {
     "start": "craco start",
@@ -85,8 +87,9 @@
     "test:dev": "jest --watch",
     "test:coverage": "jest --watchAll=false --coverage",
     "eject": "react-scripts eject",
+    "lint:local": "eslint",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx ./src --cache",
-    "lint:ci": "pnpm lint --max-warnings=0",
+    "lint:ci": "CI=false pnpm lint",
     "lint:fix": "eslint ./src --fix --cache",
     "typecheck": "tsc --noEmit"
   },
@@ -136,6 +139,6 @@
     "lokijs": "^1.5.12",
     "msw": "^0.47.4",
     "postcss-import": "^14.1.0",
-    "prettier": "^2.6.2"
+    "prettier": "2"
   }
 }

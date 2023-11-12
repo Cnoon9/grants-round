@@ -11,6 +11,21 @@ import { ChainId, RedstoneTokenIds } from "common";
 
 // NB: number keys are coerced into strings for JS object keys
 export const CHAINS: Record<ChainId, Program["chain"]> = {
+  [ChainId.DEV1]: {
+    id: ChainId.DEV1,
+    name: "DEV1",
+    logo: "/logos/ethereum-eth-logo.svg",
+  },
+  [ChainId.DEV2]: {
+    id: ChainId.DEV2,
+    name: "DEV2",
+    logo: "/logos/ethereum-eth-logo.svg",
+  },
+  [ChainId.MAINNET]: {
+    id: ChainId.MAINNET,
+    name: "Mainnet", // TODO get canonical network names
+    logo: "/logos/ethereum-eth-logo.svg",
+  },
   [ChainId.MAINNET]: {
     id: ChainId.MAINNET,
     name: "Mainnet", // TODO get canonical network names
@@ -56,6 +71,26 @@ export const CHAINS: Record<ChainId, Program["chain"]> = {
     name: "Arbitrum Goerli",
     logo: "/logos/arb-logo.svg",
   },
+  [ChainId.AVALANCHE]: {
+    id: ChainId.AVALANCHE,
+    name: "Avalanche",
+    logo: "/logos/avax-logo.svg",
+  },
+  [ChainId.FUJI]: {
+    id: ChainId.FUJI,
+    name: "Fuji (Avalanche Testnet)",
+    logo: "/logos/avax-logo.svg",
+  },
+  [ChainId.POLYGON]: {
+    id: ChainId.POLYGON,
+    name: "Polygon PoS",
+    logo: "./logos/pol-logo.svg",
+  },
+  [ChainId.POLYGON_MUMBAI]: {
+    id: ChainId.POLYGON_MUMBAI,
+    name: "Polygon Mumbai",
+    logo: "./logos/pol-logo.svg",
+  },
 };
 
 export type PayoutToken = {
@@ -78,10 +113,15 @@ export const TokenNamesAndLogos = {
   FTM: "/logos/fantom-logo.svg",
   BUSD: "/logos/busd-logo.svg",
   DAI: "/logos/dai-logo.svg",
+  USDC: "./logos/usdc-logo.svg",
   ETH: "/logos/ethereum-eth-logo.svg",
   OP: "/logos/optimism-logo.svg",
   ARB: "/logos/arb-logo.svg",
   GCV: "/logos/gcv.svg",
+  GTC: "/logos/gtc.svg",
+  AVAX: "/logos/avax-logo.svg",
+  MATIC: "/logos/pol-logo.svg",
+  CVP: "/logos/power-pool.png", // PowerPool
 } as const;
 
 const MAINNET_TOKENS: PayoutToken[] = [
@@ -100,6 +140,14 @@ const MAINNET_TOKENS: PayoutToken[] = [
     decimal: 18,
     logo: TokenNamesAndLogos["ETH"],
     redstoneTokenId: RedstoneTokenIds["ETH"],
+  },
+  {
+    name: "CVP",
+    chainId: ChainId.MAINNET,
+    address: "0x38e4adB44ef08F22F5B5b76A8f0c2d0dCbE7DcA1",
+    decimal: 18,
+    logo: TokenNamesAndLogos["CVP"],
+    redstoneTokenId: RedstoneTokenIds["CVP"],
   },
 ];
 
@@ -237,6 +285,22 @@ const PGN_MAINNET_TOKENS: PayoutToken[] = [
     logo: TokenNamesAndLogos["ETH"],
     redstoneTokenId: RedstoneTokenIds["ETH"],
   },
+  {
+    name: "GTC",
+    chainId: ChainId.PGN,
+    address: "0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2",
+    decimal: 18,
+    logo: TokenNamesAndLogos["GTC"],
+    redstoneTokenId: RedstoneTokenIds["GTC"],
+  },
+  {
+    name: "DAI",
+    chainId: ChainId.PGN,
+    address: "0x6C121674ba6736644A7e73A8741407fE8a5eE5BA",
+    decimal: 18,
+    logo: TokenNamesAndLogos["DAI"],
+    redstoneTokenId: RedstoneTokenIds["DAI"],
+  },
 ];
 
 const ARBITRUM_GOERLI_TOKENS: PayoutToken[] = [
@@ -260,12 +324,12 @@ const ARBITRUM_TOKENS: PayoutToken[] = [
     redstoneTokenId: RedstoneTokenIds["ETH"],
   },
   {
-    name: "DAI",
+    name: "USDC",
     chainId: ChainId.ARBITRUM,
-    address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-    decimal: 18,
-    logo: TokenNamesAndLogos["DAI"],
-    redstoneTokenId: RedstoneTokenIds["DAI"],
+    address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
   },
   {
     name: "ARB",
@@ -274,6 +338,82 @@ const ARBITRUM_TOKENS: PayoutToken[] = [
     decimal: 18,
     logo: TokenNamesAndLogos["ARB"],
     redstoneTokenId: RedstoneTokenIds["ARB"],
+  },
+];
+
+const AVALANCHE_TOKENS: PayoutToken[] = [
+  {
+    name: "AVAX",
+    chainId: ChainId.AVALANCHE,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["AVAX"],
+    redstoneTokenId: RedstoneTokenIds["AVAX"],
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.AVALANCHE,
+    address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+  },
+];
+
+const FUJI_TOKENS: PayoutToken[] = [
+  {
+    name: "AVAX",
+    chainId: ChainId.FUJI,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["AVAX"],
+    redstoneTokenId: RedstoneTokenIds["AVAX"],
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.FUJI,
+    address: "0x5425890298aed601595a70ab815c96711a31bc65",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+  },
+];
+
+const POLYGON_TOKENS: PayoutToken[] = [
+  {
+    name: "MATIC",
+    chainId: ChainId.POLYGON,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["MATIC"],
+    redstoneTokenId: RedstoneTokenIds["MATIC"],
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.POLYGON,
+    address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+  },
+];
+
+const POLYGON_MUMBAI_TOKENS: PayoutToken[] = [
+  {
+    name: "MATIC",
+    chainId: ChainId.POLYGON_MUMBAI,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["MATIC"],
+    redstoneTokenId: RedstoneTokenIds["MATIC"],
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.POLYGON_MUMBAI,
+    address: "0x9999f7Fea5938fD3b1E26A12c3f2fb024e194f97",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
   },
 ];
 
@@ -287,6 +427,10 @@ export const payoutTokens = [
   ...PGN_MAINNET_TOKENS,
   ...ARBITRUM_TOKENS,
   ...ARBITRUM_GOERLI_TOKENS,
+  ...AVALANCHE_TOKENS,
+  ...FUJI_TOKENS,
+  ...POLYGON_TOKENS,
+  ...POLYGON_MUMBAI_TOKENS,
 ];
 
 /*TODO: merge this and the above into one list / function*/
@@ -307,6 +451,14 @@ export const getPayoutTokenOptions = (chainId: ChainId): PayoutToken[] => {
           address: ethers.constants.AddressZero,
           logo: TokenNamesAndLogos["ETH"],
           decimal: 18,
+        },
+        {
+          name: "CVP",
+          chainId: ChainId.MAINNET,
+          address: "0x38e4adB44ef08F22F5B5b76A8f0c2d0dCbE7DcA1",
+          decimal: 18,
+          logo: TokenNamesAndLogos["CVP"],
+          redstoneTokenId: RedstoneTokenIds["CVP"],
         },
       ];
     }
@@ -398,6 +550,22 @@ export const getPayoutTokenOptions = (chainId: ChainId): PayoutToken[] => {
 
     case ChainId.ARBITRUM:
       return payoutTokens.filter((token) => token.chainId === ChainId.ARBITRUM);
+
+    case ChainId.POLYGON:
+      return payoutTokens.filter((token) => token.chainId === ChainId.POLYGON);
+
+    case ChainId.POLYGON_MUMBAI:
+      return payoutTokens.filter(
+        (token) => token.chainId === ChainId.POLYGON_MUMBAI
+      );
+
+    case ChainId.AVALANCHE:
+      return payoutTokens.filter(
+        (token) => token.chainId === ChainId.AVALANCHE
+      );
+
+    case ChainId.FUJI:
+      return payoutTokens.filter((token) => token.chainId === ChainId.FUJI);
 
     case ChainId.GOERLI_CHAIN_ID:
     default: {
@@ -514,6 +682,8 @@ export interface SchemaQuestion {
   hidden: boolean;
   choices?: string[];
   encrypted: boolean;
+  fixed?: boolean;
+  metadataExcluded?: boolean;
 }
 
 export interface ProjectRequirementsSchema {
@@ -546,18 +716,20 @@ export const generateApplicationSchema = (
   const schema = { questions: new Array<SchemaQuestion>(), requirements };
   if (!questions) return schema;
 
-  schema.questions = questions.map((question, index) => {
-    return {
-      id: index,
-      title: question.title,
-      type: question.type,
-      required: question.required,
-      info: "",
-      choices: question.choices,
-      hidden: question.hidden,
-      encrypted: question.encrypted,
-    };
-  });
+  schema.questions = questions
+    .filter((q) => !q.metadataExcluded)
+    .map((question, index) => {
+      return {
+        id: index,
+        title: question.title,
+        type: question.type,
+        required: question.required,
+        info: "",
+        choices: question.choices,
+        hidden: question.hidden,
+        encrypted: question.encrypted,
+      };
+    });
 
   return schema;
 };

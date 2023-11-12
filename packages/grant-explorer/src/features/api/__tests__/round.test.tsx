@@ -11,7 +11,7 @@ vi.mock("../utils", () => ({
 }));
 
 vi.mock("../round", async () => {
-  const actual = await vi.importActual("../round");
+  const actual = await vi.importActual<typeof import("../round")>("../round");
   return {
     ...actual,
     getProjectOwners: vi.fn(),
@@ -56,6 +56,10 @@ describe("getRoundById", () => {
               expectedRoundData.roundEndTime
             ),
             token: expectedRoundData.token,
+            payoutStrategy: { 
+              id: "some-id",
+              strategyName: "MERKLE",
+            },
             votingStrategy: expectedRoundData.votingStrategy,
             projectsMetaPtr: null,
             projects: [],

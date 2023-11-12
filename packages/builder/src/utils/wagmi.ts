@@ -4,153 +4,152 @@ import {
   injectedWallet,
   metaMaskWallet,
 } from "@rainbow-me/rainbowkit/wallets";
-import { chain, configureChains, createClient } from "wagmi";
+import { configureChains, createClient } from "wagmi";
+import { arbitrum, goerli, arbitrumGoerli } from "wagmi/chains";
 import { alchemyProvider } from "wagmi/providers/alchemy";
 import { infuraProvider } from "wagmi/providers/infura";
 import { publicProvider } from "wagmi/providers/public";
-import PublicGoodsNetworkIcon from "common/src/icons/PublicGoodsNetwork.svg";
-import { FantomFTMLogo, FTMTestnet, OPIcon } from "../assets";
+import {
+  pgn,
+  pgnTestnet,
+  devChain1,
+  devChain2,
+  avalanche,
+  avalancheFuji,
+  fantom,
+  fantomTestnet,
+  customOptimism,
+  customPolygon,
+  customMainnet,
+} from "common/src/chains";
+import { getConfig } from "common/src/config";
+import { polygonMumbai } from "@wagmi/core/chains";
 
-const ftmTestnetIcon = FTMTestnet;
-const ftmMainnetIcon = FantomFTMLogo;
-
-// RPC keys
-const alchemyId = process.env.REACT_APP_ALCHEMY_ID;
-const infuraId = process.env.REACT_APP_INFURA_ID;
-
-export const pgn: Chain = {
-  id: 424,
-  name: "PGN",
-  network: "pgn",
-  iconUrl: PublicGoodsNetworkIcon,
-  nativeCurrency: {
-    decimals: 18,
-    name: "Ether",
-    symbol: "ETH",
-  },
-  rpcUrls: {
-    default: "https://rpc.publicgoods.network",
-  },
-  blockExplorers: {
-    default: {
-      name: "pgnscan",
-      url: "https://explorer.publicgoods.network",
-    },
-  },
+const availableChains: { [key: string]: Chain } = {
+  dev1: devChain1,
+  dev2: devChain2,
+  mainnet: customMainnet,
+  fantom,
+  optimism: customOptimism,
+  pgn,
+  arbitrum,
+  avalanche,
+  polygon: customPolygon,
+  goerli,
+  fantomTestnet,
+  pgnTestnet,
+  arbitrumGoerli,
+  polygonMumbai,
+  avalancheFuji,
 };
 
-const chainsAvailable: Chain[] = [];
-export const pgnTestnet: Chain = {
-  id: 58008,
-  name: "PGN Testnet",
-  network: "pgn testnet",
-  iconUrl: PublicGoodsNetworkIcon,
-  nativeCurrency: {
-    decimals: 18,
-    name: "Ether",
-    symbol: "ETH",
-  },
-  rpcUrls: {
-    default: "https://sepolia.publicgoods.network",
-  },
-  blockExplorers: {
-    default: {
-      name: "pgnscan",
-      url: "https://explorer.sepolia.publicgoods.network",
-    },
-  },
-  testnet: true,
-};
-// Adding custom chain setups for Fantom Mainnet and Testnet
-const fantomTestnet: Chain = {
-  id: 4002,
-  name: "Fantom Testnet",
-  network: "fantom testnet",
-  iconUrl: ftmTestnetIcon,
-  nativeCurrency: {
-    decimals: 18,
-    name: "Fantom",
-    symbol: "FTM",
-  },
-  rpcUrls: {
-    default: "https://rpc.testnet.fantom.network/",
-  },
-  blockExplorers: {
-    default: { name: "ftmscan", url: "https://testnet.ftmscan.com" },
-  },
-  testnet: true,
-};
+const stagingChains = [
+  devChain1,
+  devChain2,
+  customOptimism,
+  goerli,
+  fantomTestnet,
+  fantom,
+  customMainnet,
+  pgnTestnet,
+  pgn,
+  arbitrum,
+  arbitrumGoerli,
+  customPolygon,
+  polygonMumbai,
+  avalanche,
+  avalancheFuji,
+];
 
-const fantomMainnet: Chain = {
-  id: 250,
-  name: "Fantom",
-  network: "fantom mainnet",
-  iconUrl: ftmMainnetIcon,
-  nativeCurrency: {
-    decimals: 18,
-    name: "Fantom",
-    symbol: "FTM",
-  },
-  rpcUrls: {
-    default: "https://rpcapi.fantom.network/",
-  },
-  blockExplorers: {
-    default: { name: "ftmscan", url: "https://ftmscan.com" },
-  },
-  testnet: false,
-};
+const productionChains = [
+  customMainnet,
+  fantom,
+  customOptimism,
+  pgn,
+  arbitrum,
+  avalanche,
+  customPolygon,
+];
 
-const optimismMainnet: Chain = {
-  id: 10,
-  name: "Optimism",
-  network: "optimism mainnet",
-  iconUrl: OPIcon,
-  nativeCurrency: {
-    decimals: 18,
-    name: "Optimism",
-    symbol: "ETH",
-  },
-  rpcUrls: {
-    default: `https://opt-mainnet.g.alchemy.com/v2/${alchemyId}`,
-  },
-  blockExplorers: {
-    default: { name: "etherscan", url: "https://optimistic.etherscan.io" },
-  },
-  testnet: false,
-};
+function getEnabledChainsAndProviders() {
+  const config = getConfig();
+  const chains: Chain[] = [];
+  const providers = [publicProvider({ priority: 2 })];
 
-// todo: fix for rpc issue is with hardhat local chain calling rpc
-if (process.env.REACT_APP_LOCALCHAIN) {
-  chainsAvailable.push(chain.hardhat);
+  const {
+    blockchain: { chainsOverride },
+  } = config;
+  const selectedChainsNames =
+    chainsOverride !== undefined &&
+    chainsOverride.trim() !== "" &&
+    // FIXME: now that we are validating config vars with zod, we allow optional vars.
+    // Until we finalize the global configuration we leave chainsOverride in prod set as "-"
+    // to make the verify-env task passing.
+    // When we finish the refactoring to use the global config everywhere, we can change the way we
+    // verify the env vars
+    chainsOverride !== "-"
+      ? chainsOverride.split(",").map((name) => name.trim())
+      : [];
+
+  let usingDevOnlyChains = true;
+
+  if (selectedChainsNames.length > 0) {
+    // if REACT_APP_CHAINS is specified we use those
+    selectedChainsNames.forEach((name) => {
+      // if it's not a local dev chain, it means we are using external
+      // chains and we need infura/alchemy ids to be set
+      if (!/^dev[1-9]+$/.test(name)) {
+        usingDevOnlyChains = false;
+      }
+
+      const chain = availableChains[name];
+      if (chain === undefined) {
+        throw new Error(
+          `availableChains doesn't contain a chain called "${name}"`
+        );
+      }
+
+      chains.push(chain);
+    });
+  } else if (config.appEnv === "production") {
+    // if REACT_APP_CHAINS is not specified  ans we are in production
+    // we use the default chains for production environments
+    usingDevOnlyChains = false;
+    chains.push(...productionChains);
+  } else {
+    // if REACT_APP_CHAINS is not specified we use the
+    // default chains for staging
+    usingDevOnlyChains = false;
+    chains.push(...stagingChains);
+  }
+
+  if (!usingDevOnlyChains) {
+    if (
+      process.env.NODE_ENV !== "test" &&
+      (config.blockchain.infuraId === undefined ||
+        config.blockchain.alchemyId === undefined)
+    ) {
+      throw new Error(
+        "REACT_APP_INFURA_ID and REACT_APP_ALCHEMY_ID must be set to use non-local chains"
+      );
+    }
+
+    providers.push(
+      infuraProvider({ apiKey: config.blockchain.infuraId!, priority: 0 }),
+      alchemyProvider({ apiKey: config.blockchain.alchemyId!, priority: 1 })
+    );
+  }
+
+  return { chains, providers };
 }
 
-if (process.env.REACT_APP_ENV === "production") {
-  chainsAvailable.push(
-    chain.mainnet,
-    fantomMainnet,
-    optimismMainnet,
-    pgn,
-    chain.arbitrum
-  );
-} else {
-  chainsAvailable.push(
-    optimismMainnet,
-    chain.goerli,
-    fantomTestnet,
-    fantomMainnet,
-    chain.mainnet,
-    pgnTestnet,
-    pgn,
-    chain.arbitrum,
-    chain.arbitrumGoerli
-  );
-}
+const { chains: enabledChains, providers: enabledProviders } =
+  getEnabledChainsAndProviders();
 
-export const { chains, provider } = configureChains(chainsAvailable, [
-  infuraProvider({ apiKey: infuraId, priority: 0 }),
-  alchemyProvider({ apiKey: alchemyId, priority: 1 }),
-  publicProvider({ priority: 2 }),
-]);
+export const { chains, provider } = configureChains(
+  enabledChains,
+  enabledProviders
+);
 
 // Custom wallet connectors: more can be added by going here:
 // https://www.rainbowkit.com/docs/custom-wallet-list
@@ -160,7 +159,10 @@ const connectors = connectorsForWallets([
     wallets: [
       injectedWallet({ chains }),
       coinbaseWallet({ appName: "Builder", chains }),
-      metaMaskWallet({ chains }),
+      metaMaskWallet({
+        chains,
+        projectId: "0000000000" /* We don't support walletconnect */,
+      }),
     ],
   },
 ]);

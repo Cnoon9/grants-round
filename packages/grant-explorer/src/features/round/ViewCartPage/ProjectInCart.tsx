@@ -1,5 +1,5 @@
 import React from "react";
-import { CartProject, PayoutToken } from "../../api/types";
+import { CartProject, VotingToken } from "../../api/types";
 import DefaultLogoImage from "../../../assets/default_logo.png";
 import { Link } from "react-router-dom";
 import { EyeIcon } from "@heroicons/react/24/solid";
@@ -15,9 +15,10 @@ export function ProjectInCart(
     projects: CartProject[];
     roundRoutePath: string;
     last?: boolean;
-    selectedPayoutToken: PayoutToken;
+    selectedPayoutToken: VotingToken;
     payoutTokenPrice: number;
     removeProjectFromCart: (grantApplicationId: string) => void;
+    matchingEstimateUSD: number | undefined;
   }
 ) {
   const { project, roundRoutePath } = props;

@@ -6,6 +6,7 @@ import { Web3Provider } from "@ethersproject/providers";
 import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
 import { BigNumber } from "ethers";
 import { SchemaQuestion } from "./utils";
+import { RoundVisibilityType } from "common";
 
 export type Network = "goerli" | "optimism" | "fantom" | "pgn";
 
@@ -136,6 +137,11 @@ export interface ApplicationMetadata {
   requirements: ProjectRequirements;
 }
 
+export enum RoundCategory {
+  QuadraticFunding,
+  Direct,
+}
+
 export interface Round {
   /**
    * The on-chain unique round ID
@@ -150,7 +156,7 @@ export interface Round {
   roundMetadata: {
     name: string;
     programContractAddress: string;
-    roundType: string;
+    roundType: RoundVisibilityType;
     eligibility?: {
       description: string;
       requirements: { requirement: string }[];
@@ -189,8 +195,15 @@ export interface Round {
    */
   payoutStrategy: {
     id: string;
-    isReadyForPayout: boolean;
+    isReadyForPayout?: boolean;
+    vaultAddress?: string;
+    strategyName?: string;
   };
+  /**
+   * Used in RoundCategory.Direct
+   * Is the address from where the grant will be paid out
+   */
+  vaultAddress?: string;
   /**
    * Unix timestamp of the start of the round
    */
@@ -199,6 +212,10 @@ export interface Round {
    * Unix timestamp of the end of the round
    */
   roundEndTime: Date;
+  /**
+   * enable/disable validations for round end time
+   */
+  roundEndTimeDisabled?: boolean;
   /**
    * Unix timestamp of when grants can apply to a round
    */
@@ -258,7 +275,8 @@ export type ProjectStatus =
   | "REJECTED"
   | "CANCELLED"
   | "APPEAL"
-  | "FRAUD";
+  | "FRAUD"
+  | "IN_REVIEW";
 
 export type ProjectCredentials = {
   [key: string]: VerifiableCredential;
@@ -324,7 +342,28 @@ export interface GrantApplication {
   /**
    * Status of each grant application
    */
-  status?: ProjectStatus;
+  status?: ProjectStatus; // handle round status 0,1,2,3
+  inReview?: boolean; // handle payoutStatus for DirectStrategy
+
+  projectId?: string;
+
+  payoutStrategy?: {
+    strategyName: string;
+    id: string;
+    payouts: {
+      applicationIndex: number;
+      amount: string;
+      createdAt: string;
+      txnHash: string;
+    }[];
+  };
+
+  statusSnapshots?: {
+    status: ProjectStatus;
+    statusDescription: string;
+    timestamp: Date;
+  }[];
+
   /**
    * Index of a grant application
    */
@@ -359,11 +398,17 @@ export enum ApplicationStatus {
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
   CANCELLED = "CANCELLED",
+  IN_REVIEW = "IN_REVIEW",
 }
 
 export type Status = {
   index: number;
   status: number;
+};
+
+export type StatusForDirectPayout = {
+  index: number;
+  status: boolean;
 };
 
 export type AppStatus = {

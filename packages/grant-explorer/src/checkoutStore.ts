@@ -24,7 +24,7 @@ import {
 import { MRC_CONTRACTS } from "./features/api/contracts";
 import { groupBy, uniq } from "lodash-es";
 import { datadogLogs } from "@datadog/browser-logs";
-import { allChains } from "./app/wagmi";
+import { allChains } from "./app/chainConfig";
 import { WalletClient } from "wagmi";
 import { getContract, getWalletClient, PublicClient } from "@wagmi/core";
 
@@ -54,6 +54,9 @@ interface CheckoutState {
     walletClient: WalletClient,
     publicClient: PublicClient
   ) => Promise<void>;
+  getCheckedOutProjects: () => CartProject[];
+  checkedOutProjects: CartProject[];
+  setCheckedOutProjects: (newArray: CartProject[]) => void;
 }
 
 const defaultProgressStatusForAllChains = Object.fromEntries(
@@ -111,7 +114,8 @@ export const useCheckoutStore = create<CheckoutState>()(
         [chain: number]: CartProject[];
       };
 
-      const payoutTokens = useCartStorage.getState().chainToPayoutToken;
+      const getVotingTokenForChain =
+        useCartStorage.getState().getVotingTokenForChain;
 
       const totalDonationPerChain = Object.fromEntries(
         Object.entries(projectsByChain).map(([key, value]) => [
@@ -123,7 +127,7 @@ export const useCheckoutStore = create<CheckoutState>()(
                 acc +
                 parseUnits(
                   amount ? amount : "0",
-                  payoutTokens[Number(key) as ChainId].decimal
+                  getVotingTokenForChain(Number(key) as ChainId).decimal
                 ),
               0n
             ),
@@ -146,7 +150,7 @@ export const useCheckoutStore = create<CheckoutState>()(
         const wc = await getWalletClient({
           chainId,
         })!;
-        const token = payoutTokens[chainId];
+        const token = getVotingTokenForChain(chainId);
 
         let sig;
         let nonce;
@@ -289,6 +293,9 @@ export const useCheckoutStore = create<CheckoutState>()(
               [chainId]: ProgressStatus.IS_SUCCESS,
             },
           }));
+          set({
+            checkedOutProjects: [...get().checkedOutProjects, ...donations],
+          });
         } catch (error) {
           datadogLogs.logger.error(
             `error: vote - ${error}. Data - ${donations.toString()}`
@@ -304,6 +311,15 @@ export const useCheckoutStore = create<CheckoutState>()(
         }
       }
       /* End main chain loop*/
+    },
+    checkedOutProjects: [],
+    getCheckedOutProjects: () => {
+      return get().checkedOutProjects;
+    },
+    setCheckedOutProjects: (newArray: CartProject[]) => {
+      set({
+        checkedOutProjects: newArray,
+      });
     },
   }))
 );

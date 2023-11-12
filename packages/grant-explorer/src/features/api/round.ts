@@ -3,6 +3,7 @@ import {
   ApplicationStatus,
   Eligibility,
   MetadataPointer,
+  PayoutStrategy,
   Project,
   Round,
 } from "./types";
@@ -12,6 +13,7 @@ import {
 } from "allo-indexer-client";
 import { useEffect, useState } from "react";
 import { getAddress } from "viem";
+import { RoundVisibilityType } from "common";
 
 /**
  * Shape of subgraph response
@@ -37,6 +39,7 @@ export interface RoundResult {
   roundStartTime: string;
   roundEndTime: string;
   token: string;
+  payoutStrategy: PayoutStrategy;
   votingStrategy: string;
   projectsMetaPtr?: MetadataPointer | null;
   projects: RoundProjectResult[];
@@ -54,7 +57,7 @@ interface RoundProjectResult {
  */
 export type RoundMetadata = {
   name: string;
-  roundType: string;
+  roundType: RoundVisibilityType;
   eligibility: Eligibility;
   programContractAddress: string;
 };
@@ -103,6 +106,10 @@ export async function getRoundById(
             roundStartTime
             roundEndTime
             token
+            payoutStrategy {
+              id
+              strategyName
+            }
             votingStrategy
             projectsMetaPtr {
               pointer
@@ -157,6 +164,7 @@ export async function getRoundById(
       roundStartTime: new Date(parseInt(round.roundStartTime) * 1000),
       roundEndTime: new Date(parseInt(round.roundEndTime) * 1000),
       token: round.token,
+      payoutStrategy: round.payoutStrategy,
       votingStrategy: round.votingStrategy,
       ownedBy: round.program.id,
       approvedProjects: approvedProjectsWithMetadata,

@@ -1,5 +1,5 @@
 import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
-import { ChainId } from "common";
+import { ChainId, RoundPayoutType, RoundVisibilityType } from "common";
 import { Hex } from "viem";
 import { WalletClient } from "wagmi";
 
@@ -62,6 +62,16 @@ export interface Eligibility {
   requirements?: Requirement[];
 }
 
+export interface PayoutStrategy {
+  id: string;
+  /**
+   * Whether is QUADRATIC FUNDING or DIRECT GRANT
+   * MERKLE for QF
+   * DIRECT for DG
+   */
+  strategyName: RoundPayoutType;
+}
+
 export interface Round {
   /**
    * The on-chain unique round ID
@@ -72,7 +82,7 @@ export interface Round {
    */
   roundMetadata?: {
     name: string;
-    roundType: string;
+    roundType: RoundVisibilityType;
     eligibility: Eligibility;
     programContractAddress: string;
     quadraticFundingConfig?: {
@@ -96,6 +106,10 @@ export interface Round {
    * Pointer to application metadata in a decentralized storage e.g IPFS, Ceramic etc.
    */
   applicationStore?: MetadataPointer;
+  /**
+   * Helps identifying Round Types from QF and DG
+   */
+  payoutStrategy: PayoutStrategy;
   /**
    * Voting contract address
    */
@@ -191,14 +205,14 @@ export enum ProgressStatus {
   IS_ERROR = "IS_ERROR",
 }
 
-export type PayoutToken = {
+export type VotingToken = {
   name: string;
   chainId: ChainId;
   address: Hex;
   decimal: number;
   logo?: string;
   default?: boolean;
-  redstoneTokenId?: string;
+  redstoneTokenId: string;
   permitVersion?: string;
   //TODO: remove if the previous default was intended to be used as defaultForVoting
   defaultForVoting: boolean;

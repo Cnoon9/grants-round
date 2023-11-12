@@ -8,9 +8,15 @@ export const chains = {
   424: "pgn",
   4002: "fantomTestnet",
   31337: "localhost",
+  313371: "dev1",
+  313372: "dev2",
   58008: "pgnTestnet",
   42161: "arbitrum",
   421613: "arbitrumGoerli",
+  43114: "avalanche",
+  43113: "fuji",
+  137: "polygon",
+  80001: "polygonMumbai",
 } as const;
 
 export type ChainName = (typeof chains)[keyof typeof chains];
@@ -30,6 +36,12 @@ export type DeploymentAddressesMap = {
 };
 
 export const addresses: DeploymentAddressesMap = {
+  dev1: {
+    projectRegistry: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+  },
+  dev2: {
+    projectRegistry: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+  },
   localhost: {
     projectRegistry: "0x832c5391dc7931312CbdBc1046669c9c3A4A28d5",
   },
@@ -59,6 +71,18 @@ export const addresses: DeploymentAddressesMap = {
   },
   arbitrumGoerli: {
     projectRegistry: "0x0CD135777dEaB6D0Bb150bDB0592aC9Baa4d0871",
+  },
+  avalanche: {
+    projectRegistry: "0xDF9BF58Aa1A1B73F0e214d79C652a7dd37a6074e",
+  },
+  fuji: {
+    projectRegistry: "0x8918401DD47f1645fF1111D8E513c0404b84d5bB",
+  },
+  polygon: {
+    projectRegistry: "0x5C5E2D94b107C7691B08E43169fDe76EAAB6D48b",
+  },
+  polygonMumbai: {
+    projectRegistry: "0x545B282A50EaeA01A619914d44105437036CbB36",
   },
 };
 
