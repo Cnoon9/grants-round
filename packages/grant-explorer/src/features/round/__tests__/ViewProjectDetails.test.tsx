@@ -1,7 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { act } from "react-dom/test-utils";
-import { SWRConfig } from "swr";
 import {
   makeApprovedProjectData,
   makeRoundData,
@@ -10,6 +9,8 @@ import {
   setWindowDimensions,
 } from "../../../test-utils";
 import ViewProjectDetails from "../ViewProjectDetails";
+import { truncate } from "../../common/utils/truncate";
+import { formatDateWithOrdinal } from "common";
 
 const chainId = faker.datatype.number();
 const roundId = faker.finance.ethereumAddress();
@@ -33,9 +34,10 @@ vi.mock("wagmi", async () => {
   };
 });
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom"
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom"
+    );
 
   return {
     ...actual,
@@ -58,8 +60,10 @@ describe("<ViewProjectDetails/>", () => {
       approvedProjects: [expectedProject],
     });
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     expect(await screen.findByText(expectedProjectName)).toBeInTheDocument();
@@ -77,13 +81,16 @@ describe("<ViewProjectDetails/>", () => {
     beforeEach(() => {
       vi.clearAllMocks();
       renderWithContext(<ViewProjectDetails />, {
-        rounds: [roundWithProjects],
-        isLoading: false,
+        roundState: {
+          rounds: [roundWithProjects],
+          isLoading: false,
+        },
       });
     });
 
     it("shows project recipient", async () => {
-      expect(screen.getByTestId("project-recipient")).toBeInTheDocument();
+      const [{ recipient }] = roundWithProjects.approvedProjects ?? [];
+      expect(screen.getByText(truncate(recipient))).toBeInTheDocument();
     });
 
     it("shows project website", async () => {
@@ -93,40 +100,39 @@ describe("<ViewProjectDetails/>", () => {
     });
 
     it("shows project twitter", async () => {
-      expect(screen.getByTestId("project-twitter")).toBeInTheDocument();
+      const [{ projectMetadata }] = roundWithProjects.approvedProjects ?? [];
+      expect(
+        screen.getByText(projectMetadata?.projectTwitter as string)
+      ).toBeInTheDocument();
     });
 
     it("shows created at date", async () => {
-      expect(screen.getByTestId("project-createdAt")).toBeInTheDocument();
+      const [{ projectMetadata }] = roundWithProjects.approvedProjects ?? [];
+      expect(
+        screen.getByText(
+          formatDateWithOrdinal(new Date(projectMetadata?.createdAt ?? 0)),
+          { exact: false }
+        )
+      ).toBeInTheDocument();
     });
 
     it("shows project user github", async () => {
-      expect(screen.getByTestId("user-github")).toBeInTheDocument();
+      const [{ projectMetadata }] = roundWithProjects.approvedProjects ?? [];
+      expect(
+        screen.getByText(projectMetadata?.userGithub as string)
+      ).toBeInTheDocument();
     });
 
     it("shows project github", async () => {
-      expect(screen.getByTestId("project-github")).toBeInTheDocument();
+      const [{ projectMetadata }] = roundWithProjects.approvedProjects ?? [];
+      expect(
+        screen.getByText(projectMetadata?.projectGithub as string)
+      ).toBeInTheDocument();
     });
 
     it("displays the bread crumbs", async () => {
       expect(await screen.findByTestId("bread-crumbs")).toBeInTheDocument();
     });
-  });
-
-  it("shows project stats", async () => {
-    const expectedProject = makeApprovedProjectData({ grantApplicationId });
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
-    });
-    renderWithContext(
-      <SWRConfig value={{ dedupingInterval: 0 }}>
-        <ViewProjectDetails />
-      </SWRConfig>,
-      { rounds: [roundWithProjects], isLoading: false }
-    );
-    /* Initially shows - when loading */
-    expect(screen.getAllByText("$-")[0]).toBeInTheDocument();
   });
 
   it("shows project description", async () => {
@@ -139,8 +145,10 @@ describe("<ViewProjectDetails/>", () => {
       approvedProjects: [expectedProject],
     });
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     expect(
@@ -160,8 +168,10 @@ describe("<ViewProjectDetails/>", () => {
       approvedProjects: [expectedProject],
     });
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     const bannerImg = screen.getByRole("img", {
@@ -183,8 +193,10 @@ describe("<ViewProjectDetails/>", () => {
       approvedProjects: [expectedProject],
     });
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     const logoImg = screen.getByRole("img", {
@@ -225,8 +237,10 @@ describe("<ViewProjectDetails/>", () => {
     });
 
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     expect(screen.getByText("Additional Information")).toBeInTheDocument();
@@ -262,8 +276,10 @@ describe("<ViewProjectDetails/>", () => {
     });
 
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     expect(
@@ -286,8 +302,10 @@ describe("voting cart", () => {
 
   it("shows an add-to-cart button", async () => {
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     // mock screen size
@@ -329,8 +347,10 @@ describe("voting cart", () => {
 
   it("shows a remove-from-cart button replacing add-to-cart when add-to-cart is clicked", () => {
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
     const addToCart = screen.getAllByTestId("add-to-cart");
     fireEvent.click(addToCart[0]);
@@ -341,46 +361,25 @@ describe("voting cart", () => {
     }, 3000);
   });
 
-  it.skip("shows a add-to-cart button replacing a remove-from-cart button when remove-from-balled is clicked", async () => {
+  it("shows a add-to-cart button replacing a remove-from-cart button when remove-from-cart is clicked", async () => {
     renderWithContext(<ViewProjectDetails />, {
-      rounds: [roundWithProjects],
-      isLoading: false,
-    });
-
-    // mock screen size
-    setWindowDimensions(1200, 800);
-
-    expect(renderComponentsBasedOnDeviceSize()).toBe("desktop");
-
-    // click add to cart
-    const addToCart = screen.getAllByTestId("add-to-cart");
-    fireEvent.click(addToCart[1]);
-
-    await act(async () => {
-      await waitFor(
-        () => {
-          expect(
-            screen.queryAllByTestId("remove-from-cart")[1]
-          ).toBeInTheDocument();
-          expect(screen.queryByTestId("add-to-cart")).not.toBeInTheDocument();
-        },
-        { timeout: 3000 }
-      );
+      roundState: {
+        rounds: [roundWithProjects],
+        isLoading: false,
+      },
     });
 
     const removeFromCart = screen.getAllByTestId("remove-from-cart");
-    fireEvent.click(removeFromCart[1]);
+    fireEvent.click(removeFromCart[0]);
 
-    await act(async () => {
-      await waitFor(
-        () => {
-          expect(screen.queryAllByTestId("add-to-cart")[1]).toBeInTheDocument();
-          expect(
-            screen.queryByTestId("remove-from-cart")
-          ).not.toBeInTheDocument();
-        },
-        { timeout: 3000 }
-      );
-    });
+    await waitFor(
+      () => {
+        expect(screen.queryAllByTestId("add-to-cart")[0]).toBeInTheDocument();
+        expect(
+          screen.queryByTestId("remove-from-cart")
+        ).not.toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 });

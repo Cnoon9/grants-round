@@ -1,8 +1,16 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import { PaginatedProjectsList } from "./PaginatedProjectsList"; // Adjust the import path as needed
-import { ApplicationSummary } from "common/src/grantsStackDataClientContext";
+import { ApplicationSummary } from "data-layer";
 import { zeroAddress } from "viem";
+
+vi.mock("common/src/config", async () => {
+  return {
+    getConfig: () => ({
+      ipfs: { baseUrl: "https://example.com/ipfs" },
+    }),
+  };
+});
 
 const applicationsMock: ApplicationSummary[] = [
   {
@@ -19,6 +27,8 @@ const applicationsMock: ApplicationSummary[] = [
     summaryText: "Project Summary 1",
     bannerImageCid: "bannerCid",
     logoImageCid: "logoCid",
+    contributorCount: 0,
+    contributionsTotalUsd: 0,
   },
   {
     roundName: "Round 2",
@@ -34,6 +44,8 @@ const applicationsMock: ApplicationSummary[] = [
     summaryText: "Project Summary 2",
     bannerImageCid: "bannerCid",
     logoImageCid: "logoCid",
+    contributorCount: 0,
+    contributionsTotalUsd: 0,
   },
 ];
 

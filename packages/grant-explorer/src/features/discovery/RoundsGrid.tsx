@@ -1,4 +1,4 @@
-import { RoundOverview } from "../api/rounds";
+import { __deprecated_RoundOverview } from "../api/rounds";
 import RoundCard from "./RoundCard";
 import { createRoundLoadingData } from "./utils/createRoundLoadingData";
 import { RoundsEmptyState } from "./RoundsEmptyState";
@@ -9,23 +9,33 @@ export function RoundsGrid({
   loadingCount,
   maxCount,
   getItemClassName,
+  roundType,
 }: {
   isLoading: boolean;
-  data?: RoundOverview[];
+  data?: __deprecated_RoundOverview[];
   loadingCount: number;
   maxCount?: number;
-  getItemClassName?: (round: RoundOverview, index: number) => string;
+  getItemClassName?: (
+    round: __deprecated_RoundOverview,
+    index: number
+  ) => string;
+  roundType: "all" | "active" | "endingSoon";
 }) {
   if (!isLoading && !data?.length) {
     return <RoundsEmptyState />;
   }
   return (
-    <div className="grid md:grid-cols-3 gap-6">
+    <div className="md:grid space-y-4 md:space-y-0 md:grid-cols-3 gap-6">
       {(data ?? createRoundLoadingData(loadingCount))
         ?.slice(0, maxCount)
         .map((round, i) => (
           <div key={round?.id} className={getItemClassName?.(round, i)}>
-            <RoundCard round={round} isLoading={isLoading} />
+            <RoundCard
+              round={round}
+              isLoading={isLoading}
+              index={i}
+              roundType={roundType}
+            />
           </div>
         ))}
     </div>

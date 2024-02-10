@@ -6,4 +6,8 @@ node_modules
 .turbo
 .husky/
 .vercel
-/packages/verify-env/dist/
+dist/
+coverage/
+.eslintcache
+
+bun.lockb

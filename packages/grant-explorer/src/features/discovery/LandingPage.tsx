@@ -1,70 +1,63 @@
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
-
-import { DefaultLayout } from "../common/DefaultLayout";
+import { GradientLayout } from "../common/DefaultLayout";
 import LandingHero from "./LandingHero";
 import { LandingSection, ViewAllLink } from "./LandingSection";
 import { RoundsGrid } from "./RoundsGrid";
 import {
-  FilterStatus,
-  activeFilter,
-  endingSoonFilter,
+  RoundStatus,
+  ACTIVE_ROUNDS_FILTER,
+  ROUNDS_ENDING_SOON_FILTER,
   useFilterRounds,
 } from "./hooks/useFilterRounds";
 import { toQueryString } from "./RoundsFilter";
-import { useCollections } from "../collections/hooks/useCollections";
-import { CollectionsGrid } from "../collections/CollectionsGrid";
-import { CategoriesGrid } from "../categories/CategoriesGrid";
-import { useCategories } from "../categories/hooks/useCategories";
+import { getEnabledChains } from "../../app/chainConfig";
+import { useMemo } from "react";
 
 const LandingPage = () => {
-  const location = useLocation();
-  useEffect(() => {
-    if (
-      process.env.REACT_APP_ENV === "production" &&
-      !location.search.includes("skip_redirect")
-    ) {
-      window.location.replace("https://grants.gitcoin.co");
+  const activeRounds = useFilterRounds(
+    ACTIVE_ROUNDS_FILTER,
+    getEnabledChains()
+  );
+  const roundsEndingSoon = useFilterRounds(
+    ROUNDS_ENDING_SOON_FILTER,
+    getEnabledChains()
+  );
+
+  const filteredActiveRounds: typeof activeRounds.data = useMemo(() => {
+    if (activeRounds.data === undefined) {
+      return undefined;
     }
-  }, [location]);
 
-  const activeRounds = useFilterRounds(activeFilter);
-  const roundsEndingSoon = useFilterRounds(endingSoonFilter);
+    const rounds =
+      activeRounds.data?.filter((round) => {
+        return (round.projects?.length ?? 0) > 1;
+      }) ?? [];
 
-  const categories = useCategories();
-  const collections = useCollections();
+    rounds.sort((a, b) => {
+      return (b.projects?.length ?? 0) - (a.projects?.length ?? 0);
+    });
+
+    return rounds;
+  }, [activeRounds.data]);
 
   return (
-    <DefaultLayout showWalletInteraction>
+    <GradientLayout showWalletInteraction>
       <LandingHero />
-      <LandingSection title="Community collections">
-        <CollectionsGrid
-          data={collections}
-          loadingCount={8}
-          maxCount={8}
-          getItemClassName={(_, i) =>
-            `${[0, 1, 6, 7].includes(i) ? "md:col-span-2" : ""}`
-          }
-        />
-      </LandingSection>
-      <LandingSection title="Categories">
-        <CategoriesGrid data={categories} loadingCount={8} maxCount={8} />
-      </LandingSection>
       <LandingSection
         title="Donate now"
         action={
-          <ViewAllLink to={`/rounds?${toQueryString(activeFilter)}`}>
+          <ViewAllLink to={`/rounds?${toQueryString(ACTIVE_ROUNDS_FILTER)}`}>
             View all
           </ViewAllLink>
         }
       >
         <RoundsGrid
-          {...activeRounds}
+          {...{ ...activeRounds, data: filteredActiveRounds }}
           loadingCount={4}
           maxCount={6}
           getItemClassName={(_, i) =>
             `${i % 3 && i % 4 ? "" : "md:col-span-2"}`
           }
+          roundType="active"
         />
       </LandingSection>
       <LandingSection
@@ -72,9 +65,9 @@ const LandingPage = () => {
         action={
           <ViewAllLink
             to={`/rounds?${toQueryString({
-              orderBy: endingSoonFilter.orderBy,
-              orderDirection: endingSoonFilter.orderDirection,
-              status: FilterStatus.active,
+              orderBy: ROUNDS_ENDING_SOON_FILTER.orderBy,
+              orderDirection: ROUNDS_ENDING_SOON_FILTER.orderDirection,
+              status: RoundStatus.active,
             })}`}
           >
             View all
@@ -83,11 +76,12 @@ const LandingPage = () => {
       >
         <RoundsGrid
           {...roundsEndingSoon}
-          loadingCount={endingSoonFilter.first}
-          maxCount={endingSoonFilter.first}
+          loadingCount={ROUNDS_ENDING_SOON_FILTER.first}
+          maxCount={ROUNDS_ENDING_SOON_FILTER.first}
+          roundType="endingSoon"
         />
       </LandingSection>
-    </DefaultLayout>
+    </GradientLayout>
   );
 };
 

@@ -87,17 +87,16 @@ export function RoundBanner(props: { roundId: string }) {
   );
 }
 
-export function CollectionBanner({ projectIds }: { projectIds: string[] }) {
+export function CollectionBanner({ images }: { images: string[] }) {
   return (
     <div className="overflow-hidden h-[192px]">
-      {projectIds.map((project) => {
-        const stockId = generateRandomNumber(project);
-        const stockImage = stockImages[stockId];
+      {images.map((image, i) => {
         return (
           <div
-            className={`bg-grey-100 h-[48px] bg-no-repeat w-full bg-cover`}
+            key={i}
+            className={`bg-grey-100 h-[48px] bg-no-repeat bg-center w-full bg-cover`}
             style={{
-              backgroundImage: `url(${stockImage})`,
+              backgroundImage: `url(${image})`,
             }}
           />
         );
@@ -106,17 +105,16 @@ export function CollectionBanner({ projectIds }: { projectIds: string[] }) {
   );
 }
 
-export function CategoryBanner({ projectIds }: { projectIds: string[] }) {
+export function CategoryBanner({ images }: { images: string[] }) {
   return (
     <div className="overflow-hidden grid grid-cols-2">
-      {projectIds.map((project) => {
-        const stockId = generateRandomNumber(project);
-        const stockImage = stockImages[stockId];
+      {images.map((image, i) => {
         return (
           <div
+            key={i}
             className={`bg-grey-100 aspect-square w-full bg-no-repeat bg-cover`}
             style={{
-              backgroundImage: `url(${stockImage})`,
+              backgroundImage: `url(${image})`,
             }}
           />
         );

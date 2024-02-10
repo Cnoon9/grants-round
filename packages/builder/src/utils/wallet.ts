@@ -5,6 +5,7 @@ import { ethers } from "ethers";
 import PGNIcon from "common/src/icons/PublicGoodsNetwork.svg";
 import AVAXIcon from "common/src/icons/AVAX.svg";
 import POLIcon from "common/src/icons/pol-logo.svg";
+import ZkSyncIcon from "common/src/icons/zksync-logo.svg";
 import FantomFTMLogo from "common/src/assets/fantom-ftm-logo.png";
 import {
   EthDiamondGlyph,
@@ -32,7 +33,6 @@ export const networkPrettyNames: { [key in ChainName]: string } = {
   dev1: "Development 1",
   dev2: "Development 2",
   mainnet: "Mainnet",
-  goerli: "Goerli",
   fantomTestnet: "Fantom Testnet",
   fantom: "Fantom",
   optimism: "Optimism",
@@ -45,13 +45,16 @@ export const networkPrettyNames: { [key in ChainName]: string } = {
   fuji: "Fuji (Avalanche Testnet)",
   polygon: "Polygon PoS",
   polygonMumbai: "Polygon Mumbai",
+  zkSyncEraMainnet: "zkSync Era Mainnet",
+  zkSyncEraTestnet: "zkSync Era Testnet",
+  base: "Base",
+  sepolia: "sepolia",
 };
 
 export const networkIcon: { [key in ChainName]: string } = {
   dev1: EthDiamondGlyph,
   dev2: EthDiamondGlyph,
   mainnet: EthDiamondGlyph,
-  goerli: EthDiamondGlyph,
   fantomTestnet: FTMTestnet,
   fantom: FantomFTMLogo,
   optimism: OPIcon,
@@ -64,13 +67,16 @@ export const networkIcon: { [key in ChainName]: string } = {
   fuji: AVAXIcon,
   polygon: POLIcon,
   polygonMumbai: POLIcon,
+  zkSyncEraMainnet: ZkSyncIcon,
+  zkSyncEraTestnet: ZkSyncIcon,
+  base: EthDiamondGlyph,
+  sepolia: EthDiamondGlyph,
 };
 
 export const payoutIcon: { [key in ChainName]: string } = {
   dev1: WhiteEthIconFilledCircle,
   dev2: WhiteEthIconFilledCircle,
   mainnet: WhiteEthIconFilledCircle,
-  goerli: WhiteEthIconFilledCircle,
   fantomTestnet: FTMTestnet,
   fantom: FantomFTMLogo,
   optimism: OPIcon,
@@ -83,6 +89,10 @@ export const payoutIcon: { [key in ChainName]: string } = {
   polygonMumbai: POLIcon,
   avalanche: AVAXIcon,
   fuji: AVAXIcon,
+  zkSyncEraMainnet: ZkSyncIcon,
+  zkSyncEraTestnet: ZkSyncIcon,
+  base: EthDiamondGlyph,
+  sepolia: EthDiamondGlyph,
 };
 
 export function getNetworkIcon(chainId: ChainId): string {
