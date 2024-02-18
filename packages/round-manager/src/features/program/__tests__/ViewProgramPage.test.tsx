@@ -10,7 +10,10 @@ import {
 import { faker } from "@faker-js/faker";
 import { Program, ProgressStatus } from "../../api/types";
 import { formatUTCDateAsISOString } from "common";
-import { ROUND_PAYOUT_DIRECT, ROUND_PAYOUT_MERKLE } from "common";
+import {
+  ROUND_PAYOUT_DIRECT_OLD as ROUND_PAYOUT_DIRECT,
+  ROUND_PAYOUT_MERKLE_OLD as ROUND_PAYOUT_MERKLE,
+} from "common";
 
 const programId = faker.datatype.number().toString();
 const useParamsFn = () => ({ id: programId });
@@ -43,7 +46,7 @@ describe("<ViewProgram />", () => {
     (useWallet as jest.Mock).mockReturnValue({
       chain: {},
       address: stubProgram.operatorWallets[0],
-      provider: { getNetwork: () => ({ chainId: "0x0" }) },
+      provider: { getNetwork: () => Promise.resolve({ chainId: "0x0" }) },
     });
   });
 
@@ -62,7 +65,7 @@ describe("<ViewProgram />", () => {
     (useWallet as jest.Mock).mockReturnValue({
       chain: {},
       address: faker.finance.ethereumAddress(),
-      provider: { getNetwork: () => ({ chainId: "0x0" }) },
+      provider: { getNetwork: () => Promise.resolve({ chainId: "0x0" }) },
     });
 
     render(
@@ -108,7 +111,7 @@ describe("<ViewProgram />", () => {
     (useWallet as jest.Mock).mockReturnValue({
       chain: {},
       address: stubProgram.operatorWallets[0],
-      provider: { getNetwork: () => ({ chainId: "0x0" }) },
+      provider: { getNetwork: () => Promise.resolve({ chainId: "0x0" }) },
     });
 
     render(
