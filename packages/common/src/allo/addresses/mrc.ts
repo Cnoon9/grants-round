@@ -1,4 +1,4 @@
-import { ChainId } from "common";
+import { ChainId } from "../../chain-ids";
 import { Hex } from "viem";
 
 export const MRC_CONTRACTS: Record<ChainId, Hex> = {
@@ -13,7 +13,7 @@ export const MRC_CONTRACTS: Record<ChainId, Hex> = {
   [ChainId.OPTIMISM_MAINNET_CHAIN_ID]:
     "0x15fa08599EB017F89c1712d0Fe76138899FdB9db",
   [ChainId.FANTOM_TESTNET_CHAIN_ID]:
-    "0x0x62a850d7805f3Ae382C6eEf7eEB89A31f68Ce2d5",
+    "0x62a850d7805f3Ae382C6eEf7eEB89A31f68Ce2d5",
   [ChainId.ARBITRUM_GOERLI]: "0x8e1bD5Da87C14dd8e08F7ecc2aBf9D1d558ea174",
   [ChainId.ARBITRUM]: "0x8e1bD5Da87C14dd8e08F7ecc2aBf9D1d558ea174",
   [ChainId.FUJI]: "0x8e1bD5Da87C14dd8e08F7ecc2aBf9D1d558ea174",
@@ -26,4 +26,5 @@ export const MRC_CONTRACTS: Record<ChainId, Hex> = {
     "0x88e91283d97A482A9e0851dE335d58D97dCfF7b0",
   [ChainId.BASE]: "0x7C24f3494CC958CF268a92b45D7e54310d161794",
   [ChainId.SEPOLIA]: "0xa54A0c7Bcd37745f7F5817e06b07E2563a07E309",
+  [ChainId.SCROLL]: "0x8Bd6Bc246FAF14B767954997fF3966CD1c0Bf0f5",
 };

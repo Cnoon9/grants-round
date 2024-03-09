@@ -298,6 +298,25 @@ const BASE_TOKENS: PayoutToken[] = [
   },
 ];
 
+const SCROLL_TOKENS: PayoutToken[] = [
+  {
+    name: "ETH",
+    chainId: ChainId.SCROLL,
+    address: ethers.constants.AddressZero,
+    decimal: 18,
+    logo: TokenNamesAndLogos["ETH"],
+    redstoneTokenId: RedstoneTokenIds["ETH"],
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.SCROLL,
+    address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+  },
+];
+
 const ARBITRUM_GOERLI_TOKENS: PayoutToken[] = [
   {
     name: "ETH",
@@ -340,6 +359,14 @@ const ARBITRUM_TOKENS: PayoutToken[] = [
     decimal: 18,
     logo: TokenNamesAndLogos["USDGLO"],
     redstoneTokenId: RedstoneTokenIds["USDGLO"],
+  },
+  {
+    name: "GTC",
+    chainId: ChainId.ARBITRUM,
+    address: "0x7f9a7db853ca816b9a138aee3380ef34c437dee0",
+    decimal: 18,
+    logo: TokenNamesAndLogos["GTC"],
+    redstoneTokenId: RedstoneTokenIds["GTC"],
   },
 ];
 const AVALANCHE_TOKENS: PayoutToken[] = [
@@ -439,6 +466,7 @@ export const payoutTokens = [
   ...ZKSYNC_ERA_TESTNET_TOKENS,
   ...BASE_TOKENS,
   ...SEPOLIA_TOKENS,
+  ...SCROLL_TOKENS,
 ];
 
 export const getPayoutTokenOptions = (chainId: ChainId): PayoutToken[] => {

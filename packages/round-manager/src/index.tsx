@@ -14,9 +14,7 @@ import reportWebVitals from "./reportWebVitals";
 import "./index.css";
 
 // Routes
-import { ApplicationProvider } from "./context/application/ApplicationContext";
 import { BulkUpdateGrantApplicationProvider } from "./context/application/BulkUpdateGrantApplicationContext";
-import { CreateProgramProvider } from "./context/program/CreateProgramContext";
 import { ReadProgramProvider } from "./context/program/ReadProgramContext";
 import { FinalizeRoundProvider } from "./context/round/FinalizeRoundContext";
 import { FundContractProvider } from "./context/round/FundContractContext";
@@ -98,19 +96,17 @@ root.render(
                     path="/round/:id"
                     element={
                       <RoundProvider>
-                        <ApplicationProvider>
-                          <BulkUpdateGrantApplicationProvider>
-                            <FinalizeRoundProvider>
-                              <FundContractProvider>
-                                <ReclaimFundsProvider>
-                                  <UpdateRoundProvider>
-                                    <ViewRoundPage />
-                                  </UpdateRoundProvider>
-                                </ReclaimFundsProvider>
-                              </FundContractProvider>
-                            </FinalizeRoundProvider>
-                          </BulkUpdateGrantApplicationProvider>
-                        </ApplicationProvider>
+                        <BulkUpdateGrantApplicationProvider>
+                          <FinalizeRoundProvider>
+                            <FundContractProvider>
+                              <ReclaimFundsProvider>
+                                <UpdateRoundProvider>
+                                  <ViewRoundPage />
+                                </UpdateRoundProvider>
+                              </ReclaimFundsProvider>
+                            </FundContractProvider>
+                          </FinalizeRoundProvider>
+                        </BulkUpdateGrantApplicationProvider>
                       </RoundProvider>
                     }
                   />
@@ -118,24 +114,15 @@ root.render(
                     path="/round/:roundId/application/:id"
                     element={
                       <RoundProvider>
-                        <ApplicationProvider>
-                          <BulkUpdateGrantApplicationProvider>
-                            <ViewApplication />
-                          </BulkUpdateGrantApplicationProvider>
-                        </ApplicationProvider>
+                        <BulkUpdateGrantApplicationProvider>
+                          <ViewApplication />
+                        </BulkUpdateGrantApplicationProvider>
                       </RoundProvider>
                     }
                   />
 
                   {/* Program Routes */}
-                  <Route
-                    path="/program/create"
-                    element={
-                      <CreateProgramProvider>
-                        <CreateProgram />
-                      </CreateProgramProvider>
-                    }
-                  />
+                  <Route path="/program/create" element={<CreateProgram />} />
                   <Route
                     path="/program/:id"
                     element={

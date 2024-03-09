@@ -113,10 +113,12 @@ export type Payout = {
  * @param chainId Chain ID
  * @returns
  */
+// FIXME: the function should be prefixed by `use` since it's a hook
 export function fetchProjectPaidInARound(
   roundId: string,
   chainId: ChainId
 ): Promise<Payout[]> {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useSWR(
     [roundId, chainId],
     ([roundId, chainId]: [roundId: string, chainId: ChainId]) => {
@@ -264,6 +266,7 @@ export const useTokenPrice = (tokenId: string | undefined) => {
       loading,
     };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useMemo(async () => {
     setLoading(true);
 
@@ -307,25 +310,61 @@ export async function getTokenPrice(tokenId: string) {
   return data[0].value;
 }
 
-//FIXME: remove old types
 export const ROUND_PAYOUT_MERKLE_OLD = "MERKLE";
-export const ROUND_PAYOUT_DIRECT_OLD = "DIRECT";
 export const ROUND_PAYOUT_MERKLE = "allov1.QF";
 export const ROUND_PAYOUT_DIRECT = "allov1.Direct";
+export const ROUND_PAYOUT_DIRECT_OLD = "DIRECT";
 export type RoundPayoutType =
-  | "MERKLE"
-  | "DIRECT"
+  | typeof ROUND_PAYOUT_DIRECT_OLD
+  | typeof ROUND_PAYOUT_MERKLE_OLD;
+export type RoundPayoutTypeNew =
   | "allov1.Direct"
-  | "allov1.QF";
+  | "allov1.QF"
+  | "allov2.DonationVotingMerkleDistributionDirectTransferStrategy"
+  | "allov2.MicroGrantsStrategy"
+  | "allov2.MicroGrantsHatsStrategy"
+  | "allov2.SQFSuperFluidStrategy"
+  | "allov2.MicroGrantsGovStrategy";
+
+export type RoundStrategyType = "QuadraticFunding" | "DirectGrants";
+
+export function getRoundStrategyTitle(name: string) {
+  switch (getRoundStrategyType(name)) {
+    case "DirectGrants":
+      return "Direct Grants";
+
+    case "QuadraticFunding":
+      return "Quadratic Funding";
+  }
+}
+
+export function getRoundStrategyType(name: string): RoundStrategyType {
+  switch (name) {
+    case "allov1.Direct":
+    case "DIRECT":
+    case "allov2.DirectGrantsSimpleStrategy":
+      return "DirectGrants";
+
+    case "allov1.QF":
+    case "MERKLE":
+    case "allov2.DonationVotingMerkleDistributionDirectTransferStrategy":
+      return "QuadraticFunding";
+
+    default:
+      throw new Error(`Unknown round strategy type: ${name}`);
+  }
+}
+
 export type RoundVisibilityType = "public" | "private";
 
-export type { Allo, AlloError, AlloOperation } from "./allo/allo";
+export type { Allo } from "./allo/allo";
+export { AlloError, AlloOperation } from "./allo/allo";
 export { AlloV1 } from "./allo/backends/allo-v1";
 export { AlloV2 } from "./allo/backends/allo-v2";
 export {
   createWaitForIndexerSyncTo,
   getCurrentSubgraphBlockNumber,
-  waitForSubgraphSyncTo
+  waitForSubgraphSyncTo,
 } from "./allo/indexer";
 export type { WaitUntilIndexerSynced } from "./allo/indexer";
 export { createPinataIpfsUploader } from "./allo/ipfs";
@@ -336,7 +375,7 @@ export {
   createViemTransactionSender,
   decodeEventFromReceipt,
   sendRawTransaction,
-  sendTransaction
+  sendTransaction,
 } from "./allo/transaction-sender";
 
 export type AnyJson =
@@ -350,7 +389,7 @@ export type AnyJson =
 interface JsonMap {
   [key: string]: AnyJson;
 }
-interface JsonArray extends Array<AnyJson> {}
+type JsonArray = Array<AnyJson>;
 
 /**
  * Wrapper hook to expose wallet auth information to other components
@@ -377,3 +416,5 @@ export interface Web3Instance {
 }
 
 export { graphQlEndpoints, graphql_fetch } from "./graphql_fetch";
+
+export type { VotingToken } from "./types";

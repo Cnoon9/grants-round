@@ -1,5 +1,10 @@
 import "@testing-library/jest-dom";
-import { ApplicationStatus, RoundVisibilityType } from "data-layer";
+import { ChainId } from "common/src/chain-ids";
+import {
+  ProjectApplicationMetadata,
+  ApplicationStatus,
+  RoundVisibilityType,
+} from "data-layer";
 import {
   ProjectsState,
   Status,
@@ -16,18 +21,18 @@ describe("projects reducer", () => {
   });
 
   it("PROJECT_APPLICATIONS_LOADING updates state", async () => {
-    const initialState = {
+    const initialState: ProjectsState = {
       ...state,
       applications: {
         "1": [
           {
             id: "1",
+            projectId: "1",
             chainId: 1,
             roundId: addressFrom(1),
             status: "PENDING" as ApplicationStatus,
             metadataCid: "0x1",
-            metadata: {},
-            inReview: false,
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -53,12 +58,12 @@ describe("projects reducer", () => {
         "2": [
           {
             id: "1",
+            projectId: "1",
             chainId: 1,
             roundId: addressFrom(2),
             status: "PENDING" as ApplicationStatus,
             metadataCid: "0x1",
-            metadata: {},
-            inReview: false,
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -94,9 +99,9 @@ describe("projects reducer", () => {
         {
           roundId: addressFrom(1),
           status: "PENDING" as ApplicationStatus,
-          inReview: false,
           chainId: 1,
           id: "1",
+          projectId: "1",
           metadataCid: "0x1",
           metadata: {},
           round: {
@@ -125,18 +130,18 @@ describe("projects reducer", () => {
   });
 
   it("PROJECT_APPLICATIONS_LOADED updates state", async () => {
-    const initialState = {
+    const initialState: ProjectsState = {
       ...state,
       applications: {
         "1": [
           {
             roundId: addressFrom(1),
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "1",
+            projectId: "1",
             metadataCid: "0x1",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -169,11 +174,11 @@ describe("projects reducer", () => {
         {
           roundId: addressFrom(2),
           status: "APPROVED" as ApplicationStatus,
-          inReview: false,
           chainId: 1,
           id: "2",
+          projectId: "2",
           metadataCid: "0x2",
-          metadata: {},
+          metadata: {} as ProjectApplicationMetadata,
           round: {
             applicationsStartTime: "0",
             applicationsEndTime: "0",
@@ -202,12 +207,12 @@ describe("projects reducer", () => {
       "1": [
         {
           roundId: addressFrom(1),
+          projectId: "1",
           status: "PENDING" as ApplicationStatus,
-          inReview: false,
           chainId: 1,
           id: "1",
           metadataCid: "0x1",
-          metadata: {},
+          metadata: {} as ProjectApplicationMetadata,
           round: {
             applicationsStartTime: "0",
             applicationsEndTime: "0",
@@ -233,12 +238,12 @@ describe("projects reducer", () => {
       "2": [
         {
           roundId: addressFrom(2),
+          projectId: "2",
           status: "APPROVED" as ApplicationStatus,
-          inReview: false,
           chainId: 1,
           id: "2",
           metadataCid: "0x2",
-          metadata: {},
+          metadata: {} as ProjectApplicationMetadata,
           round: {
             applicationsStartTime: "0",
             applicationsEndTime: "0",
@@ -275,18 +280,18 @@ describe("projects reducer", () => {
   });
 
   it("PROJECT_APPLICATION_UPDATED updates a project application status", async () => {
-    const initialState = {
+    const initialState: ProjectsState = {
       ...state,
       applications: {
         "1": [
           {
             roundId: "0x1",
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "1",
+            projectId: "1",
             metadataCid: "0x1",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -313,11 +318,11 @@ describe("projects reducer", () => {
           {
             roundId: "0x1",
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "1",
+            projectId: "1",
             metadataCid: "0x1",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -342,11 +347,11 @@ describe("projects reducer", () => {
           {
             roundId: "0x2",
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "2",
+            projectId: "2",
             metadataCid: "0x2",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -371,11 +376,11 @@ describe("projects reducer", () => {
           {
             roundId: "0x3",
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "3",
+            projectId: "3",
             metadataCid: "0x3",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -400,11 +405,11 @@ describe("projects reducer", () => {
           {
             roundId: "0x4",
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "4",
+            projectId: "4",
             metadataCid: "0x4",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -431,11 +436,11 @@ describe("projects reducer", () => {
           {
             roundId: "0x3",
             status: "PENDING" as ApplicationStatus,
-            inReview: false,
             chainId: 1,
             id: "1",
+            projectId: "1",
             metadataCid: "0x1",
-            metadata: {},
+            metadata: {} as ProjectApplicationMetadata,
             round: {
               applicationsStartTime: "0",
               applicationsEndTime: "0",
@@ -470,8 +475,8 @@ describe("projects reducer", () => {
 
     expect(newState.applications!["2"][2]).toEqual({
       roundId: "0x3",
+      projectId: "3",
       status: "APPROVED" as ApplicationStatus,
-      inReview: false,
       chainId: 1,
       id: "3",
       metadataCid: "0x3",
@@ -500,46 +505,22 @@ describe("projects reducer", () => {
   });
 
   it("handles multiple chain loading states", async () => {
-    // start loading chain 0
     const state1: ProjectsState = projectsReducer(state, {
       type: "PROJECTS_LOADING",
-      payload: 10,
+      payload: [10, 1],
     });
 
     expect(state1.status).toEqual(Status.Loading);
-    expect(state1.loadingChains.length).toEqual(1);
+    expect(state1.loadingChains.length).toEqual(2);
 
-    // start loading chain 1
     const state2: ProjectsState = projectsReducer(state1, {
-      type: "PROJECTS_LOADING",
-      payload: 1,
-    });
-
-    expect(state2.status).toEqual(Status.Loading);
-    expect(state2.loadingChains.length).toEqual(2);
-
-    // mark chain 1 as done
-    const state3: ProjectsState = projectsReducer(state2, {
       type: "PROJECTS_LOADED",
       payload: {
-        chainID: 1,
-        events: {},
+        chainIDs: [ChainId.OPTIMISM_MAINNET_CHAIN_ID, ChainId.MAINNET],
       },
     });
 
-    expect(state3.status).toEqual(Status.Loading);
-    expect(state3.loadingChains.length).toEqual(1);
-
-    // mark chain 0 as done
-    const state4: ProjectsState = projectsReducer(state3, {
-      type: "PROJECTS_LOADED",
-      payload: {
-        chainID: 10,
-        events: {},
-      },
-    });
-
-    expect(state4.status).toEqual(Status.Loaded);
-    expect(state4.loadingChains.length).toEqual(0);
+    expect(state2.status).toEqual(Status.Loaded);
+    expect(state2.loadingChains.length).toEqual(0);
   });
 });

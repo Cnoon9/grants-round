@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import {
   makeRoundData,
-  wrapWithApplicationContext,
   wrapWithBulkUpdateGrantApplicationContext,
   wrapWithReadProgramContext,
   wrapWithRoundContext,
@@ -44,6 +43,11 @@ jest.mock("../../api/utils", () => ({
 jest.mock("common", () => ({
   ...jest.requireActual("common"),
   useTokenPrice: jest.fn(),
+  useAllo: jest.fn(),
+}));
+
+jest.mock("data-layer", () => ({
+  useDataLayer: () => ({}),
 }));
 
 const chainId = "0";
@@ -113,18 +117,12 @@ describe("ReclaimFunds", () => {
 
       render(
         wrapWithBulkUpdateGrantApplicationContext(
-          wrapWithApplicationContext(
-            wrapWithReadProgramContext(
-              wrapWithRoundContext(<ViewRoundPage />, {
-                data: [mockRoundData],
-                fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-              }),
-              { programs: [] }
-            ),
-            {
-              applications: [],
-              isLoading: false,
-            }
+          wrapWithReadProgramContext(
+            wrapWithRoundContext(<ViewRoundPage />, {
+              data: [mockRoundData],
+              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+            }),
+            { programs: [] }
           )
         )
       );

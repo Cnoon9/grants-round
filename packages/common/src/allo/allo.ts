@@ -1,11 +1,12 @@
 import { Signer } from "@ethersproject/abstract-signer";
-import { Round } from "data-layer";
-import { Address, Hex } from "viem";
-import { AnyJson } from "..";
-import { CreateRoundData, RoundCategory } from "../types";
+import { ApplicationStatus, Round } from "data-layer";
+import { Address, Hex, PublicClient } from "viem";
+import { AnyJson, ChainId } from "..";
+import { CreateRoundData, RoundCategory, VotingToken } from "../types";
 import { Result } from "./common";
 import { AlloOperation } from "./operation";
 import { TransactionReceipt } from "./transaction-sender";
+import { PermitSignature } from "./voting";
 
 export type CreateRoundArguments = {
   roundData: {
@@ -30,12 +31,30 @@ export type CreateRoundArguments = {
  * of the operation and resolves to a final result.
  */
 export interface Allo {
-  createProject: (args: { name: string; metadata: AnyJson }) => AlloOperation<
+  createProject: (args: {
+    name: string;
+    metadata: AnyJson;
+    nonce?: bigint;
+    memberAddresses: Address[];
+  }) => AlloOperation<
     Result<{ projectId: Hex }>,
     {
       ipfs: Result<string>;
       transaction: Result<Hex>;
       transactionStatus: Result<TransactionReceipt>;
+    }
+  >;
+
+  createProgram: (args: {
+    name: string;
+    memberAddresses: Address[];
+  }) => AlloOperation<
+    Result<{ programId: Hex }>,
+    {
+      ipfs: Result<string>;
+      transaction: Result<Hex>;
+      transactionStatus: Result<TransactionReceipt>;
+      indexingStatus: Result<void>;
     }
   >;
 
@@ -65,20 +84,55 @@ export interface Allo {
    * Applies to a round
    *
    * @param args { projectId: Hex; roundId: Hex|Number; metadata: AnyJson }
-   * @dev roundId is round address in allo v1  
+   * @dev roundId is round address in allo v1
    * @dev roundId is poolId in allo v2
    * @returns AlloOperation<Result<Hex>, { ipfs: Result<string>; transaction: Result<Hex>; transactionStatus: Result<TransactionReceipt> }>
    */
   applyToRound: (args: {
     projectId: Hex;
-    roundId: Hex|number;
+    roundId: Hex | number;
     metadata: AnyJson;
+    strategy?: RoundCategory;
   }) => AlloOperation<
     Result<Hex>,
     {
       ipfs: Result<string>;
       transaction: Result<Hex>;
       transactionStatus: Result<TransactionReceipt>;
+    }
+  >;
+
+  voteUsingMRCContract: (
+    publicClient: PublicClient,
+    chainId: ChainId,
+    token: VotingToken,
+    groupedVotes: Record<string, Hex[]>,
+    groupedAmounts: Record<string, bigint>,
+    nativeTokenAmount: bigint,
+    permit?: {
+      sig: PermitSignature;
+      deadline: number;
+      nonce: bigint;
+    }
+  ) => Promise<TransactionReceipt>;
+
+  bulkUpdateApplicationStatus: (args: {
+    roundId: string;
+    strategyAddress: Address;
+    applicationsToUpdate: {
+      index: number;
+      status: ApplicationStatus;
+    }[];
+    currentApplications: {
+      index: number;
+      status: ApplicationStatus;
+    }[];
+  }) => AlloOperation<
+    Result<void>,
+    {
+      transaction: Result<Hex>;
+      transactionStatus: Result<TransactionReceipt>;
+      indexingStatus: Result<void>;
     }
   >;
 }

@@ -232,6 +232,7 @@ export function RoundApplicationForm(props: {
     ipfsStatus,
     contractDeploymentStatus,
     indexingStatus,
+    error: createRoundError,
   } = useCreateRoundStore();
 
   /** Upon succesful creation of round, redirect to program details */
@@ -269,10 +270,6 @@ export function RoundApplicationForm(props: {
         setOpenErrorModal(true);
       }, errorModalDelayMs);
     }
-
-    if (indexingStatus === ProgressStatus.IS_ERROR) {
-      redirectToProgramDetails(navigate, 5000, programId);
-    }
   }, [
     contractDeploymentStatus,
     indexingStatus,
@@ -287,6 +284,10 @@ export function RoundApplicationForm(props: {
 
   const next: SubmitHandler<Round> = async (values) => {
     try {
+      if (allo === null) {
+        throw "wallet not connected";
+      }
+
       setOpenProgressModal(true);
       const data = _.merge(formData, values);
 
@@ -399,6 +400,7 @@ export function RoundApplicationForm(props: {
     >
       <ErrorModal
         isOpen={openErrorModal}
+        subheading={createRoundError?.toString()}
         setIsOpen={setOpenErrorModal}
         tryAgainFn={handleSubmit(next)}
         doneFn={() => {

@@ -3,7 +3,6 @@ import { Program } from "../types";
 import { makeProgramData } from "../../../test-utils";
 import { CHAINS } from "../utils";
 import { ChainId } from "common";
-import { zeroAddress } from "viem";
 
 jest.mock("data-layer", () => ({
   DataLayer: jest.fn().mockImplementation(() => ({
@@ -16,9 +15,13 @@ jest.mock("data-layer", () => ({
 describe("listPrograms", () => {
   it("calls the indexer endpoint", async () => {
     // const address = "0x0"
-    const expectedProgram = makeProgramData({
+    let expectedProgram = makeProgramData({
       chain: CHAINS[ChainId.MAINNET],
     });
+    expectedProgram = {
+      ...expectedProgram,
+      createdByAddress: expectedProgram.operatorWallets[0],
+    };
     const expectedPrograms: Program[] = [expectedProgram];
 
     const actualPrograms = await listPrograms(
@@ -37,6 +40,7 @@ describe("listPrograms", () => {
               metadata: {
                 name: expectedProgram.metadata?.name,
               },
+              createdByAddress: expectedProgram.operatorWallets[0],
             },
           ],
         }),
@@ -55,7 +59,6 @@ describe("getProgramById", () => {
     const programId = expectedProgram.id;
 
     const actualProgram = await getProgramById(
-      zeroAddress,
       programId as string,
       {
         getNetwork: async () =>
@@ -63,7 +66,7 @@ describe("getProgramById", () => {
           Promise.resolve({ chainId: ChainId.MAINNET }),
       },
       {
-        getProgramByIdAndUser: jest.fn().mockResolvedValue({
+        getProgramById: jest.fn().mockResolvedValue({
           program: {
             id: expectedProgram.id,
             roles: [{ address: expectedProgram.operatorWallets[0] }],

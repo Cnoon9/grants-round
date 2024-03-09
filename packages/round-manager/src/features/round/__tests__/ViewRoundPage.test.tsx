@@ -7,13 +7,18 @@ import {
   makeGrantApplicationData,
   makeRoundData,
   makeDirectGrantRoundData,
-  wrapWithApplicationContext,
   wrapWithBulkUpdateGrantApplicationContext,
   wrapWithReadProgramContext,
   wrapWithRoundContext,
 } from "../../../test-utils";
 import { GrantApplication, ProgressStatus, Round } from "../../api/types";
 import ViewRoundPage from "../ViewRoundPage";
+import { useApplicationsByRoundId } from "../../common/useApplicationsByRoundId";
+
+jest.mock("common", () => ({
+  ...jest.requireActual("common"),
+  useAllo: jest.fn(),
+}));
 
 jest.mock("../../common/Auth");
 jest.mock("wagmi");
@@ -21,6 +26,12 @@ jest.mock("wagmi");
 jest.mock("@rainbow-me/rainbowkit", () => ({
   ConnectButton: jest.fn(),
 }));
+
+jest.mock("data-layer", () => ({
+  useDataLayer: () => ({}),
+}));
+
+jest.mock("../../common/useApplicationsByRoundId");
 
 Object.assign(navigator, {
   clipboard: {
@@ -54,7 +65,7 @@ jest.mock("../../common/Auth", () => ({
       network: {
         chainId: 1,
       },
-      getNetwork: () => {
+      getNetwork: async () => {
         return { chainId: 1 };
       },
     },
@@ -71,6 +82,10 @@ describe("View Round", () => {
 
     (useSwitchNetwork as jest.Mock).mockReturnValue({ chains: [] });
     (useDisconnect as jest.Mock).mockReturnValue({});
+    (useApplicationsByRoundId as jest.Mock).mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
   });
 
   it("displays a 404 when there no round is found", () => {
@@ -80,18 +95,12 @@ describe("View Round", () => {
 
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [],
-              fetchRoundStatus: ProgressStatus.IS_ERROR,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-            isLoading: false,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [],
+            fetchRoundStatus: ProgressStatus.IS_ERROR,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -102,17 +111,12 @@ describe("View Round", () => {
   it("displays access denied when wallet accessing is not round operator", () => {
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [{ ...mockRoundData, operatorWallets: [] }],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [{ ...mockRoundData, operatorWallets: [] }],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -122,14 +126,12 @@ describe("View Round", () => {
   it("displays Round application button", () => {
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockRoundData],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          )
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -139,18 +141,12 @@ describe("View Round", () => {
   it("displays copy when there are no applicants for a given round", () => {
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockRoundData],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-            isLoading: false,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -160,18 +156,12 @@ describe("View Round", () => {
   it("displays side navigation bar in the round page", () => {
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockRoundData],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-            isLoading: false,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -194,18 +184,12 @@ describe("View Round", () => {
     });
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockDirectGrantRoundData],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-            isLoading: false,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockDirectGrantRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -233,20 +217,20 @@ describe("View Round", () => {
     mockApplicationData[2].status = "REJECTED";
     mockApplicationData[3].status = "APPROVED";
 
+    (useApplicationsByRoundId as jest.Mock).mockReturnValue({
+      data: mockApplicationData,
+      error: undefined,
+      isLoading: false,
+    });
+
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockRoundData],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: mockApplicationData,
-            isLoading: false,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -265,18 +249,12 @@ describe("View Round", () => {
   it("displays loading spinner when round is loading", () => {
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockRoundData],
-              fetchRoundStatus: ProgressStatus.IN_PROGRESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-            isLoading: true,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IN_PROGRESS,
+          }),
+          { programs: [] }
         )
       )
     );
@@ -286,13 +264,11 @@ describe("View Round", () => {
 
   it("displays option to view round's explorer", () => {
     render(
-      wrapWithApplicationContext(
-        wrapWithReadProgramContext(
-          wrapWithRoundContext(<ViewRoundPage />, {
-            data: [mockRoundData],
-            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-          })
-        )
+      wrapWithReadProgramContext(
+        wrapWithRoundContext(<ViewRoundPage />, {
+          data: [mockRoundData],
+          fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+        })
       )
     );
     const roundExplorer = screen.getByTestId("round-explorer");

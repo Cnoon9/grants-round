@@ -1,21 +1,23 @@
 import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
+import { Address } from "viem";
 import { RoundApplicationMetadata } from "./roundApplication.types";
 // TODO `RoundPayoutType` and `RoundVisibilityType` are duplicated from `common` to
 // avoid further spaghetti dependencies. They should probably be relocated here.
-export type RoundPayoutType =
-  | "MERKLE"
-  | "DIRECT"
-  | "allov1.Direct"
-  | "allov1.QF";
+export type RoundPayoutType = "allov1.Direct" | "allov1.QF";
 export type RoundVisibilityType = "public" | "private";
 
 export type ApplicationStatus =
   | "PENDING"
   | "APPROVED"
+  | "IN_REVIEW"
   | "REJECTED"
   | "APPEAL"
   | "FRAUD"
-  | "RECEIVED";
+  | "RECEIVED"
+  | "CANCELLED"
+  | "IN_REVIEW";
+
+export type ProjectType = "CANONICAL" | "LINKED";
 
 export type GrantApplicationFormAnswer = {
   questionId: number;
@@ -42,9 +44,15 @@ export type ProjectMetadata = {
   projectTwitter?: string;
   userGithub?: string;
   projectGithub?: string;
-  credentials?: ProjectCredentials;
+  credentials: ProjectCredentials;
   owners: ProjectOwner[];
-  createdAt?: number;
+  createdAt: number;
+  lastUpdated: number;
+};
+
+export type ProgramMetadata = {
+  name: string;
+  type: string;
 };
 
 export type AddressAndRole = {
@@ -170,6 +178,10 @@ export type v2Project = {
    */
   tags: ("allo-v1" | "allo-v2" | "program")[];
   /**
+   * Address which created the project
+   */
+  createdByAddress: string;
+  /**
    * The block the project was created at
    */
   createdAtBlock: string;
@@ -180,6 +192,14 @@ export type v2Project = {
   roles: AddressAndRole[];
   nonce?: bigint;
   anchorAddress?: string;
+  /**
+   * The type of the project - `CANONICAL` or `LINKED`
+   */
+  projectType: ProjectType;
+  /**
+   * The linked chains to the canonical project
+   */
+  linkedChains?: number[];
 };
 
 /**
@@ -192,18 +212,55 @@ export type Program = Omit<v2Project, "metadata"> & {
   };
 };
 
+export type ProjectApplicationMetadata = {
+  signature: string;
+  application: {
+    round: string;
+    answers: {
+      type: string;
+      hidden: boolean;
+      question: string;
+      questionId: number;
+      encryptedAnswer?: {
+        ciphertext: string;
+        encryptedSymmetricKey: string;
+      };
+    }[];
+    project: ProjectMetadata;
+    recipient: string;
+  };
+};
+
 /**
  * The project application type for v2
  *
  */
 export type ProjectApplication = {
   id: string;
+  projectId: string;
   chainId: number;
   roundId: string;
   status: ApplicationStatus;
   metadataCid: string;
-  metadata: any; // TODO: fix
-  inReview: boolean;
+  metadata: ProjectApplicationMetadata;
+};
+
+export type ProjectApplicationForManager = ProjectApplication & {
+  statusSnapshots: {
+    status: ApplicationStatus;
+    updatedAtBlock: string;
+    updatedAt: string;
+  }[];
+  round: {
+    strategyName: string;
+    strategyAddress: string;
+  };
+  canonicalProject: {
+    roles: { address: Address }[];
+  };
+};
+
+export type ProjectApplicationWithRound = ProjectApplication & {
   round: {
     applicationsStartTime: string;
     applicationsEndTime: string;
@@ -215,8 +272,7 @@ export type ProjectApplication = {
 };
 
 /**
- * The round type for v2
- *
+ * V2 Round
  */
 export type V2Round = {
   id: string;
@@ -232,12 +288,30 @@ export type V2Round = {
   applicationMetadataCid: string;
   strategyId: string;
   projectId: string;
-  strategyAddress: string;
+  strategyAddress: Address;
   strategyName: string;
+  isReadyForPayout: boolean;
+};
+
+/**
+ * V2 Round with project
+ */
+export type V2RoundWithProject = V2RoundWithRoles & {
+  project: {
+    id: string;
+    name: string;
+    metadata: ProgramMetadata;
+  };
+};
+
+export type ProjectApplicationWithProject = {
+  id: string;
+  name: string;
 };
 
 export type V2RoundWithRoles = V2Round & {
   roles: AddressAndRole[];
+  createdByAddress: string;
 };
 
 export type ProjectEvents = {
@@ -360,16 +434,41 @@ export interface Round {
   approvedProjects?: Project[];
 }
 
-export type TimestampVariables = {
-  applicationsStartTime_lte?: string;
-  applicationsEndTime_gt?: string;
-  applicationsEndTime_lt?: string;
-  applicationsEndTime?: string;
-  applicationsEndTime_gte?: string;
-  roundStartTime_lt?: string;
-  roundStartTime_gt?: string;
-  roundEndTime_gt?: string;
-  roundEndTime_lt?: string;
+export type TimeFilter = {
+  greaterThan?: string;
+  lessThan?: string;
+  greaterThanOrEqualTo?: string;
+  lessThanOrEqualTo?: string;
+};
+
+export type TimeFilterVariables = {
+  applicationsStartTime?: TimeFilter;
+  applicationsEndTime?: TimeFilter;
+  donationsStartTime?: TimeFilter;
+  donationsEndTime?: TimeFilter;
+};
+
+export type RoundsQueryVariables = {
+  first?: number;
+  orderBy?: OrderByRounds;
+  filter?: {
+    and: (
+      | { or: TimeFilterVariables[] }
+      | { or: { strategyName: { in: string[] } } }
+      | {
+          or: {
+            chainId: {
+              in: number[];
+            };
+          };
+        }
+      | {
+          tags: {
+            contains: "allo-v1" | "allo-v2";
+          };
+        }
+    )[];
+  };
 };
 
 export type RoundOverview = {
@@ -421,6 +520,116 @@ export type Collection = {
   description: string;
   applicationRefs: string[];
 };
+
+export type RoundGetRound = {
+  id: string;
+  tags: string[];
+  chainId: number;
+  createdAtBlock: number;
+  roundMetadataCid: string;
+  roundMetadata: RoundMetadataGetRound;
+  applicationsStartTime: string;
+  applicationsEndTime: string;
+  donationsStartTime: string;
+  donationsEndTime: string;
+  matchAmountInUsd: number;
+  matchAmount: string;
+  matchTokenAddress: string;
+  strategyId: string;
+  strategyName: RoundPayoutType;
+  strategyAddress: string;
+  applications: ApplicationWithId[];
+};
+
+export interface RoundMetadataGetRound {
+  name?: string;
+  support?: Support;
+  eligibility: Eligibility;
+  feesAddress?: string;
+  matchingFunds?: MatchingFunds;
+  feesPercentage?: number;
+  programContractAddress: string;
+  quadraticFundingConfig?: QuadraticFundingConfig;
+  roundType?: "public" | "private";
+}
+
+export interface Support {
+  info: string;
+  type: string;
+}
+
+export interface MatchingFunds {
+  matchingCap: boolean;
+  matchingFundsAvailable: number;
+}
+
+export interface QuadraticFundingConfig {
+  matchingCap: boolean;
+  sybilDefense: boolean;
+  matchingCapAmount?: number;
+  minDonationThreshold: boolean;
+  matchingFundsAvailable: number;
+  minDonationThresholdAmount?: number;
+}
+
+export interface ApplicationWithId {
+  id: string;
+}
+
+export type OrderByRounds =
+  | "NATURAL"
+  | "ID_ASC"
+  | "ID_DESC"
+  | "CHAIN_ID_ASC"
+  | "CHAIN_ID_DESC"
+  | "TAGS_ASC"
+  | "TAGS_DESC"
+  | "MATCH_AMOUNT_ASC"
+  | "MATCH_AMOUNT_DESC"
+  | "MATCH_TOKEN_ADDRESS_ASC"
+  | "MATCH_TOKEN_ADDRESS_DESC"
+  | "MATCH_AMOUNT_IN_USD_ASC"
+  | "MATCH_AMOUNT_IN_USD_DESC"
+  | "APPLICATION_METADATA_CID_ASC"
+  | "APPLICATION_METADATA_CID_DESC"
+  | "APPLICATION_METADATA_ASC"
+  | "APPLICATION_METADATA_DESC"
+  | "ROUND_METADATA_CID_ASC"
+  | "ROUND_METADATA_CID_DESC"
+  | "ROUND_METADATA_ASC"
+  | "ROUND_METADATA_DESC"
+  | "APPLICATIONS_START_TIME_ASC"
+  | "APPLICATIONS_START_TIME_DESC"
+  | "APPLICATIONS_END_TIME_ASC"
+  | "APPLICATIONS_END_TIME_DESC"
+  | "DONATIONS_START_TIME_ASC"
+  | "DONATIONS_START_TIME_DESC"
+  | "DONATIONS_END_TIME_ASC"
+  | "DONATIONS_END_TIME_DESC"
+  | "CREATED_AT_BLOCK_ASC"
+  | "CREATED_AT_BLOCK_DESC"
+  | "UPDATED_AT_BLOCK_ASC"
+  | "UPDATED_AT_BLOCK_DESC"
+  | "MANAGER_ROLE_ASC"
+  | "MANAGER_ROLE_DESC"
+  | "ADMIN_ROLE_ASC"
+  | "ADMIN_ROLE_DESC"
+  | "STRATEGY_ADDRESS_ASC"
+  | "STRATEGY_ADDRESS_DESC"
+  | "STRATEGY_ID_ASC"
+  | "STRATEGY_ID_DESC"
+  | "STRATEGY_NAME_ASC"
+  | "STRATEGY_NAME_DESC"
+  | "PROJECT_ID_ASC"
+  | "PROJECT_ID_DESC"
+  | "TOTAL_AMOUNT_DONATED_IN_USD_ASC"
+  | "TOTAL_AMOUNT_DONATED_IN_USD_DESC"
+  | "TOTAL_DONATIONS_COUNT_ASC"
+  | "TOTAL_DONATIONS_COUNT_DESC"
+  | "UNIQUE_DONORS_COUNT_ASC"
+  | "UNIQUE_DONORS_COUNT_DESC"
+  | "PRIMARY_KEY_ASC"
+  | "PRIMARY_KEY_DESC";
 
 export type Application = {
   id: string;

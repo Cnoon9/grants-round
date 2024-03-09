@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, screen } from "@testing-library/react";
-import { ProjectApplication } from "data-layer";
+import { ProjectApplicationWithRound } from "data-layer";
 import { web3ChainIDLoaded } from "../../../../actions/web3";
 import setupStore from "../../../../store";
 import {
@@ -8,6 +8,7 @@ import {
   buildProjectApplication,
   buildRound,
   renderWrapped,
+  roundIdFrom,
 } from "../../../../utils/test_utils";
 import Rounds from "../Rounds";
 
@@ -31,6 +32,7 @@ const buildActiveRound = (roundData: any) => {
   const roundEndTime = new Date(now + 20000000);
 
   const round = buildRound({
+    id: roundIdFrom(1),
     address: addressFrom(1),
     applicationsStartTime,
     applicationsEndTime,
@@ -51,6 +53,7 @@ const buildPastRound = (roundData: any) => {
   const roundEndTime = new Date(now - 900000);
 
   const round = buildRound({
+    id: roundIdFrom(1),
     address: addressFrom(1),
     applicationsStartTime,
     applicationsEndTime,
@@ -71,6 +74,7 @@ const buildCurrentApplication = (roundData: any) => {
   const roundEndTime = new Date(now + 3000);
 
   const round = buildRound({
+    id: roundIdFrom(1),
     address: addressFrom(1),
     applicationsStartTime,
     applicationsEndTime,
@@ -92,23 +96,25 @@ describe("<Rounds />", () => {
       store.dispatch(web3ChainIDLoaded(5));
 
       const round1 = buildActiveRound({
+        id: roundIdFrom(1),
         address: addressFrom(1),
       });
       const round2 = buildActiveRound({
+        id: roundIdFrom(2),
         address: addressFrom(2),
       });
 
       store.dispatch({
         type: "ROUNDS_ROUND_LOADED",
-        address: addressFrom(1),
+        id: addressFrom(1),
         round: round1,
       });
       store.dispatch({
         type: "ROUNDS_ROUND_LOADED",
-        address: addressFrom(2),
+        id: addressFrom(2),
         round: round2,
       });
-      const applications: ProjectApplication[] = [];
+      const applications: ProjectApplicationWithRound[] = [];
       applications.push(
         buildProjectApplication({
           roundId: addressFrom(1),
@@ -151,15 +157,15 @@ describe("<Rounds />", () => {
 
       store.dispatch({
         type: "ROUNDS_ROUND_LOADED",
-        address: addressFrom(1),
+        id: addressFrom(1),
         round: round1,
       });
       store.dispatch({
         type: "ROUNDS_ROUND_LOADED",
-        address: addressFrom(2),
+        id: addressFrom(2),
         round: round2,
       });
-      const applications: ProjectApplication[] = [];
+      const applications: ProjectApplicationWithRound[] = [];
       applications.push(
         buildProjectApplication({
           roundId: addressFrom(1),
@@ -196,20 +202,21 @@ describe("<Rounds />", () => {
 
       const round1 = buildPastRound({});
       const round2 = buildPastRound({
+        id: roundIdFrom(2),
         address: addressFrom(2),
       });
 
       store.dispatch({
         type: "ROUNDS_ROUND_LOADED",
-        address: addressFrom(1),
+        id: addressFrom(1),
         round: round1,
       });
       store.dispatch({
         type: "ROUNDS_ROUND_LOADED",
-        address: addressFrom(2),
+        id: addressFrom(2),
         round: round2,
       });
-      const applications: ProjectApplication[] = [];
+      const applications: ProjectApplicationWithRound[] = [];
       applications.push(
         buildProjectApplication({
           roundId: addressFrom(1),

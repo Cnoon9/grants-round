@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { CartProject, IPFSObject, Round, VotingToken } from "./types";
+import { CartProject, IPFSObject, Round } from "./types";
 import {
   ChainId,
   graphQlEndpoints,
-  ROUND_PAYOUT_DIRECT_OLD,
-  ROUND_PAYOUT_MERKLE_OLD,
   ROUND_PAYOUT_DIRECT,
+  ROUND_PAYOUT_DIRECT_OLD,
   ROUND_PAYOUT_MERKLE,
-  RoundPayoutType,
+  ROUND_PAYOUT_MERKLE_OLD,
+  RoundPayoutTypeNew,
+  VotingToken,
 } from "common";
 import { RedstoneTokenIds } from "common/src/chain-ids";
 import { useSearchParams } from "react-router-dom";
@@ -121,6 +122,11 @@ export const CHAINS: Record<
     id: ChainId.SEPOLIA,
     name: "Sepolia",
     logo: "./logos/ethereum-eth-logo.svg",
+  },
+  [ChainId.SCROLL]: {
+    id: ChainId.SCROLL,
+    name: "Scroll",
+    logo: "./logos/scroll-logo.svg",
   },
 };
 
@@ -578,6 +584,30 @@ const FUJI_TOKENS: VotingToken[] = [
   },
 ];
 
+const SCROLL_TOKENS: VotingToken[] = [
+  {
+    name: "ETH",
+    chainId: ChainId.SCROLL,
+    address: zeroAddress,
+    decimal: 18,
+    logo: TokenNamesAndLogos["ETH"],
+    redstoneTokenId: RedstoneTokenIds["ETH"],
+    defaultForVoting: true,
+    canVote: true,
+  },
+  {
+    name: "USDC",
+    chainId: ChainId.SCROLL,
+    address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+    decimal: 6,
+    logo: TokenNamesAndLogos["USDC"],
+    redstoneTokenId: RedstoneTokenIds["USDC"],
+    permitVersion: "2",
+    defaultForVoting: false,
+    canVote: true,
+  },
+];
+
 export const votingTokens = [
   ...MAINNET_TOKENS,
   ...OPTIMISM_MAINNET_TOKENS,
@@ -594,6 +624,7 @@ export const votingTokens = [
   ...ZKSYNC_ERA_TESTNET_TOKENS,
   ...ZKSYNC_ERA_MAINNET_TOKENS,
   ...BASE_TOKENS,
+  ...SCROLL_TOKENS,
 ];
 
 type VotingTokensMap = Record<ChainId, VotingToken[]>;
@@ -618,6 +649,7 @@ export const votingTokensMap: VotingTokensMap = {
   [ChainId.ZKSYNC_ERA_MAINNET_CHAIN_ID]: ZKSYNC_ERA_MAINNET_TOKENS,
   [ChainId.BASE]: BASE_TOKENS,
   [ChainId.SEPOLIA]: SEPOLIA_TOKENS,
+  [ChainId.SCROLL]: SCROLL_TOKENS,
 };
 
 export const getVotingTokenOptions = (chainId: ChainId): VotingToken[] =>
@@ -652,7 +684,8 @@ export const txExplorerLinks: Record<ChainId, string> = {
     "https://goerli.explorer.zksync.io/tx/",
   [ChainId.ZKSYNC_ERA_MAINNET_CHAIN_ID]: "https://explorer.zksync.io/tx/",
   [ChainId.BASE]: "https://basescan.org/tx/",
-  [ChainId.SEPOLIA]: "https://sepolia.etherscan.io//tx/",
+  [ChainId.SEPOLIA]: "https://sepolia.etherscan.io/tx/",
+  [ChainId.SCROLL]: "https://scrollscan.com/tx/",
 };
 
 /**
@@ -811,6 +844,7 @@ export function getChainIds(): number[] {
       Number(ChainId.POLYGON),
       Number(ChainId.ZKSYNC_ERA_MAINNET_CHAIN_ID),
       Number(ChainId.BASE),
+      Number(ChainId.SCROLL),
     ];
   } else {
     return Object.values(ChainId)
@@ -820,19 +854,23 @@ export function getChainIds(): number[] {
 }
 
 export const isDirectRound = (round: Round) =>
+  // @ts-expect-error support old rounds
   round.payoutStrategy.strategyName === ROUND_PAYOUT_DIRECT_OLD ||
   round.payoutStrategy.strategyName === ROUND_PAYOUT_DIRECT;
 
 export const isInfiniteDate = (roundTime: Date) =>
   roundTime.toString() === "Invalid Date";
 
-export const getRoundType = (payoutStrategyName: RoundPayoutType) => {
+export const getRoundType = (payoutStrategyName: RoundPayoutTypeNew) => {
   switch (payoutStrategyName) {
+    // @ts-expect-error support old rounds
     case ROUND_PAYOUT_MERKLE_OLD:
     case ROUND_PAYOUT_MERKLE:
       return "Quadratic Funding";
+    // @ts-expect-error support old rounds
     case ROUND_PAYOUT_DIRECT_OLD:
     case ROUND_PAYOUT_DIRECT:
+    case "allov2.DonationVotingMerkleDistributionDirectTransferStrategy":
       return "Direct Grants";
     default:
       return payoutStrategyName;

@@ -7,7 +7,7 @@ import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
 import { BigNumber } from "ethers";
 import { SchemaQuestion } from "./utils";
 import { RoundVisibilityType } from "common";
-import { Address } from  "viem";
+import { Address } from "viem";
 
 export type Network = "optimism" | "fantom" | "pgn";
 
@@ -95,6 +95,10 @@ export interface Program {
    * Addresses of wallets that will have admin privileges to operate the Grant program
    */
   operatorWallets: Array<string>;
+  /**
+   * Address which created the program
+   */
+  createdByAddress?: string;
   /**
    * Network Chain Information
    */
@@ -253,6 +257,10 @@ export interface Round {
   finalized: boolean;
   protocolFeePercentage?: number;
   roundFeePercentage?: number;
+  /**
+   * CreatedByAddress
+   */
+  createdByAddress?: string;
 }
 
 export type MatchingStatsData = {
@@ -272,11 +280,12 @@ export type MatchingStatsData = {
 
 export type ProjectStatus =
   | "PENDING"
+  | "RECEIVED"
   | "APPROVED"
   | "REJECTED"
-  | "CANCELLED"
   | "APPEAL"
   | "FRAUD"
+  | "CANCELLED"
   | "IN_REVIEW";
 
 export type ProjectCredentials = {
@@ -343,9 +352,11 @@ export interface GrantApplication {
   /**
    * Status of each grant application
    */
-  status?: ProjectStatus; // handle round status 0,1,2,3
+  status: ProjectStatus; // handle round status 0,1,2,3
   inReview?: boolean; // handle payoutStatus for DirectStrategy
 
+  // FIXME: this is needed in useApplciationsByRound.tsx because it's mandatory
+  // in the direct payout flow. Why is it optional? can we set it as mandatory?
   projectId?: string;
 
   payoutStrategy?: {
@@ -361,14 +372,13 @@ export interface GrantApplication {
 
   statusSnapshots?: {
     status: ProjectStatus;
-    statusDescription: string;
-    timestamp: Date;
+    updatedAt: Date;
   }[];
 
   /**
    * Index of a grant application
    */
-  applicationIndex?: number;
+  applicationIndex: number;
   /**
    * Created timestamp of a grant application
    */
@@ -424,7 +434,7 @@ export type ProgressStep = {
 };
 
 export type Project = {
-  lastUpdated: number; // unix timestamp in milliseconds
+  lastUpdated: number; // unix timestamp in miliseconds
   createdAt: number; // unix timestamp in miliseconds
   id: string;
   owners: ProjectOwner[];
@@ -437,7 +447,6 @@ export type Project = {
   userGithub?: string;
   projectTwitter?: string;
   credentials: ProjectCredentials;
-  metaPtr: MetadataPointer;
 };
 
 export type TransactionBlock = {

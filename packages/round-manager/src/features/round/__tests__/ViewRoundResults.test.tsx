@@ -7,7 +7,6 @@ import {
   makeApprovedProjectData,
   makeQFDistribution,
   makeRoundData,
-  wrapWithApplicationContext,
   wrapWithBulkUpdateGrantApplicationContext,
   wrapWithFinalizeRoundContext,
   wrapWithReadProgramContext,
@@ -18,6 +17,11 @@ import { ProgressStatus } from "../../api/types";
 import ViewRoundPage from "../ViewRoundPage";
 import { useRound, useRoundMatchingFunds } from "../../../hooks";
 import { Round } from "../../api/types";
+
+jest.mock("common", () => ({
+  ...jest.requireActual("common"),
+  useAllo: jest.fn(),
+}));
 
 jest.mock("../../common/Auth");
 jest.mock("../../api/round");
@@ -45,6 +49,10 @@ jest.mock("wagmi", () => ({
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
   useParams: jest.fn(),
+}));
+
+jest.mock("data-layer", () => ({
+  useDataLayer: () => ({}),
 }));
 
 let mockRoundData: Round = makeRoundData();
@@ -156,14 +164,12 @@ describe("View Round Results", () => {
 
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithFinalizeRoundContext(
-              wrapWithRoundContext(<ViewRoundPage />, {
-                data: [mockRoundData],
-                fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-              })
-            )
+        wrapWithReadProgramContext(
+          wrapWithFinalizeRoundContext(
+            wrapWithRoundContext(<ViewRoundPage />, {
+              data: [mockRoundData],
+              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+            })
           )
         )
       )

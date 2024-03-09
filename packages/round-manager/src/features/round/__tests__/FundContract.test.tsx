@@ -4,7 +4,6 @@ import ViewRoundPage from "../ViewRoundPage";
 import { ProgressStatus, Round } from "../../api/types";
 import {
   makeRoundData,
-  wrapWithApplicationContext,
   wrapWithBulkUpdateGrantApplicationContext,
   wrapWithReadProgramContext,
   wrapWithRoundContext,
@@ -57,6 +56,11 @@ jest.mock("../../api/utils", () => ({
 jest.mock("common", () => ({
   ...jest.requireActual("common"),
   useTokenPrice: jest.fn(),
+  useAllo: jest.fn(),
+}));
+
+jest.mock("data-layer", () => ({
+  useDataLayer: () => ({}),
 }));
 
 describe("fund contract tab", () => {
@@ -98,18 +102,12 @@ describe("fund contract tab", () => {
 
     render(
       wrapWithBulkUpdateGrantApplicationContext(
-        wrapWithApplicationContext(
-          wrapWithReadProgramContext(
-            wrapWithRoundContext(<ViewRoundPage />, {
-              data: [mockRoundData],
-              fetchRoundStatus: ProgressStatus.IS_SUCCESS,
-            }),
-            { programs: [] }
-          ),
-          {
-            applications: [],
-            isLoading: false,
-          }
+        wrapWithReadProgramContext(
+          wrapWithRoundContext(<ViewRoundPage />, {
+            data: [mockRoundData],
+            fetchRoundStatus: ProgressStatus.IS_SUCCESS,
+          }),
+          { programs: [] }
         )
       )
     );

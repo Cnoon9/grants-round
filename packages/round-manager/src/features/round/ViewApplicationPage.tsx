@@ -43,7 +43,6 @@ import { Lit } from "../api/lit";
 import { utils } from "ethers";
 import NotFoundPage from "../common/NotFoundPage";
 import AccessDenied from "../common/AccessDenied";
-import { useApplicationByRoundId } from "../../context/application/ApplicationContext";
 import { Spinner } from "../common/Spinner";
 import { ApplicationBanner, ApplicationLogo } from "./BulkApplicationCommon";
 import { useRoundById } from "../../context/round/RoundContext";
@@ -60,7 +59,9 @@ import {
 import {
   CalendarIcon,
   formatDateWithOrdinal,
+  getRoundStrategyType,
   getUTCTime,
+  useAllo,
   VerifiedCredentialState,
 } from "common";
 import { renderToHTML } from "common";
@@ -68,7 +69,7 @@ import { useDebugMode } from "../../hooks";
 import { getPayoutRoundDescription } from "../common/Utils";
 import moment from "moment";
 import ApplicationDirectPayout from "./ApplicationDirectPayout";
-import { ROUND_PAYOUT_DIRECT_OLD as ROUND_PAYOUT_DIRECT } from "common";
+import { useApplicationsByRoundId } from "../common/useApplicationsByRoundId";
 
 type Status = "done" | "current" | "rejected" | "approved" | undefined;
 
@@ -76,6 +77,16 @@ export const IAM_SERVER =
   "did:key:z6MkghvGHLobLEdj1bgRLhS4LPGJAvbMA1tn2zcRyqmYU5LC";
 
 const verifier = new PassportVerifier();
+
+function getApplicationStatusTitle(status: ProjectStatus) {
+  switch (status) {
+    case "IN_REVIEW":
+      return "In review";
+    default:
+      // capital case
+      return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  }
+}
 
 export default function ViewApplicationPage() {
   const navigate = useNavigate();
@@ -100,8 +111,7 @@ export default function ViewApplicationPage() {
   const { roundId, id } = useParams() as { roundId: string; id: string };
   const { chain, address } = useWallet();
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const { applications, isLoading } = useApplicationByRoundId(roundId!);
+  const { data: applications, isLoading } = useApplicationsByRoundId(roundId!);
   const filteredApplication = applications?.filter((a) => a.id == id) || [];
   const application = filteredApplication[0];
 
@@ -123,7 +133,7 @@ export default function ViewApplicationPage() {
     },
     {
       name: "Indexing",
-      description: "The subgraph is indexing the data.",
+      description: "Indexing the data.",
       status: indexingStatus,
     },
     {
@@ -183,11 +193,25 @@ export default function ViewApplicationPage() {
   }, [application, application?.project?.owners, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { round } = useRoundById(roundId);
+  const allo = useAllo();
 
   const handleReview = async () => {
+    if (
+      reviewDecision === undefined ||
+      applications === undefined ||
+      applications[0]?.payoutStrategy?.strategyName === undefined ||
+      applications[0]?.payoutStrategy?.id === undefined
+    ) {
+      return;
+    }
+
     try {
       if (!application) {
         throw "error: application does not exist";
+      }
+
+      if (allo === null) {
+        throw "wallet not connected";
       }
 
       setOpenProgressModal(true);
@@ -197,17 +221,17 @@ export default function ViewApplicationPage() {
         application.inReview = true;
       } else {
         application.status = reviewDecision;
+        application.inReview = false;
       }
 
       await bulkUpdateGrantApplications({
         roundId: roundId,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        applications: applications!,
-        payoutAddress:
-          reviewDecision == "IN_REVIEW"
-            ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              applications![0].payoutStrategy?.id
-            : undefined,
+        allo,
+        applications: applications,
+        roundStrategyAddress: applications[0].payoutStrategy.id,
+        roundStrategy: getRoundStrategyType(
+          applications[0].payoutStrategy.strategyName
+        ),
         selectedApplications: [application],
       });
     } catch (error) {
@@ -431,14 +455,19 @@ export default function ViewApplicationPage() {
     return "done";
   };
 
+  const strategyType = application?.payoutStrategy?.strategyName
+    ? getRoundStrategyType(application.payoutStrategy.strategyName)
+    : undefined;
+
   const showReviewButton = () =>
-    application?.payoutStrategy?.strategyName === ROUND_PAYOUT_DIRECT &&
+    strategyType === "DirectGrants" &&
     application?.status === "PENDING" &&
     application?.inReview === false;
 
   const showApproveReject = () => {
-    if (application?.payoutStrategy?.strategyName !== ROUND_PAYOUT_DIRECT)
+    if (strategyType !== "DirectGrants") {
       return true;
+    }
 
     if (application?.status === "PENDING" && !application?.inReview) {
       return false;
@@ -465,7 +494,7 @@ export default function ViewApplicationPage() {
                 <span>{"Program Details"}</span>
               </Link>
               <ChevronRightIcon className="h-6 w-6" />
-              <Link to={`/round/${id}`}>
+              <Link to={`/round/${roundId.toString()}`}>
                 <span>{"Round Details"}</span>
               </Link>
               {round && <RoundBadgeStatus round={round} />}
@@ -489,10 +518,9 @@ export default function ViewApplicationPage() {
               </div>
             )}
             <div className="flex flex-row flex-wrap relative">
-              {round &&
-                round?.payoutStrategy.strategyName != ROUND_PAYOUT_DIRECT && (
-                  <ApplicationOpenDateRange round={round} />
-                )}
+              {round && strategyType === "DirectGrants" && (
+                <ApplicationOpenDateRange round={round} />
+              )}
               {round && <RoundOpenDateRange round={round} />}
               <div className="absolute right-0">
                 <ViewGrantsExplorerButton
@@ -514,7 +542,7 @@ export default function ViewApplicationPage() {
                   <div className="flex flex-col">
                     {application
                       .statusSnapshots!.sort((a, b) =>
-                        moment(a.timestamp).diff(moment(b.timestamp))
+                        moment(a.updatedAt).diff(moment(b.updatedAt))
                       )
                       .map((s, index) => (
                         <Step
@@ -523,24 +551,23 @@ export default function ViewApplicationPage() {
                             s.status,
                             index === application.statusSnapshots!.length - 1
                           )}
-                          title={s.statusDescription.toLowerCase()}
+                          title={getApplicationStatusTitle(s.status)}
                           icon={
                             <CalendarIcon className="text-grey-400 h-3 w-3" />
                           }
                           text={
                             <>
                               <div className="mb-[2px]">
-                                {moment(s.timestamp).format("MMMM Do YYYY")}
+                                {moment(s.updatedAt).format("MMMM Do YYYY")}
                               </div>
-                              <div>{getUTCTime(s.timestamp)}</div>
+                              <div>{getUTCTime(s.updatedAt)}</div>
                             </>
                           }
                           index={index}
                         />
                       ))}
                     {/* When is direct round and application is in review */}
-                    {application?.payoutStrategy?.strategyName ==
-                      ROUND_PAYOUT_DIRECT &&
+                    {strategyType === "DirectGrants" &&
                       application.status === "PENDING" &&
                       !application.inReview && (
                         <>
@@ -778,10 +805,8 @@ export default function ViewApplicationPage() {
                       </div>
                     );
                   })}
-
                 {round !== undefined &&
-                  application?.payoutStrategy?.strategyName ==
-                    ROUND_PAYOUT_DIRECT &&
+                  strategyType === "DirectGrants" &&
                   application?.status === "APPROVED" &&
                   answerBlocks !== undefined &&
                   answerBlocks.length > 0 && (
@@ -856,7 +881,7 @@ function vcProviderMatchesProject(
 function vcIssuedToAddress(vc: VerifiableCredential, address: string) {
   const vcIdSplit = vc.credentialSubject.id.split(":");
   const addressFromId = vcIdSplit[vcIdSplit.length - 1];
-  return addressFromId === address;
+  return addressFromId.toLowerCase() === address.toLowerCase();
 }
 
 async function isVerified(

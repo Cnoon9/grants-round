@@ -1,7 +1,7 @@
 import { datadogLogs } from "@datadog/browser-logs";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useApplicationByRoundId } from "../../context/application/ApplicationContext";
+import { useApplicationsByRoundId } from "../common/useApplicationsByRoundId";
 import {
   ApplicationStatus,
   GrantApplication,
@@ -31,15 +31,17 @@ import { useBulkUpdateGrantApplications } from "../../context/application/BulkUp
 import ProgressModal from "../common/ProgressModal";
 import ErrorModal from "../common/ErrorModal";
 import { errorModalDelayMs } from "../../constants";
+import { getRoundStrategyType, useAllo } from "common";
 
 export default function ApplicationsRejected() {
   const { id } = useParams();
+  const allo = useAllo();
 
   if (id === undefined) {
     throw new Error("id is undefined");
   }
 
-  const { applications, isLoading } = useApplicationByRoundId(id);
+  const { data: applications, isLoading } = useApplicationsByRoundId(id);
   const rejectedApplications =
     applications?.filter(
       (a) => a.status == ApplicationStatus.REJECTED.toString()
@@ -68,7 +70,7 @@ export default function ApplicationsRejected() {
     },
     {
       name: "Indexing",
-      description: "The subgraph is indexing the data.",
+      description: "Indexing the data.",
       status: indexingStatus,
     },
     {
@@ -136,14 +138,27 @@ export default function ApplicationsRejected() {
   };
 
   const handleBulkReview = async () => {
+    if (
+      allo === null ||
+      id === undefined ||
+      applications === undefined ||
+      applications[0].payoutStrategy?.strategyName === undefined ||
+      applications[0].payoutStrategy?.id === undefined
+    ) {
+      return;
+    }
+
     try {
       setOpenProgressModal(true);
       setOpenConfirmationModal(false);
       await bulkUpdateGrantApplications({
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        roundId: id!,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        applications: applications!,
+        allo,
+        roundId: id,
+        applications: applications,
+        roundStrategy: getRoundStrategyType(
+          applications[0].payoutStrategy.strategyName
+        ),
+        roundStrategyAddress: applications[0].payoutStrategy.id,
         selectedApplications: selected.filter(
           (application) => application.status === "APPROVED"
         ),

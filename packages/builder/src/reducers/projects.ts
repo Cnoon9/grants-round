@@ -1,4 +1,4 @@
-import { ProjectApplication, ProjectEventsMap } from "data-layer";
+import { ProjectApplicationWithRound, ProjectEventsMap } from "data-layer";
 
 import {
   PROJECTS_ERROR,
@@ -33,7 +33,7 @@ export interface ProjectsState {
   owners: ProjectOwners;
   anchor?: { [anchor: string]: string };
   applications?: {
-    [projectID: string]: ProjectApplication[];
+    [projectID: string]: ProjectApplicationWithRound[];
   };
   stats: {
     [projectID: string]: ProjectStats[];
@@ -70,8 +70,7 @@ export const projectsReducer = (
       return {
         ...state,
         status: Status.Loading,
-        loadingChains: [...state.loadingChains, action.payload],
-        ids: [],
+        loadingChains: [...state.loadingChains, ...action.payload],
       };
     }
 
@@ -86,16 +85,10 @@ export const projectsReducer = (
     }
 
     case PROJECTS_LOADED: {
-      const { chainID, events } = action.payload;
-      const ids = Object.keys(events);
-      const loadingChains = state.loadingChains.filter((id) => id !== chainID);
-
       return {
         ...state,
-        status: loadingChains.length === 0 ? Status.Loaded : state.status,
-        ids: [...state.ids, ...ids],
-        events: { ...state.events, ...events },
-        loadingChains,
+        status: Status.Loaded,
+        loadingChains: [],
       };
     }
 
@@ -141,7 +134,7 @@ export const projectsReducer = (
     case PROJECT_APPLICATION_UPDATED: {
       const projectApplications = state.applications?.[action.projectID] || [];
       const index = projectApplications.findIndex(
-        (app: ProjectApplication) => app.roundId === action.roundID
+        (app: ProjectApplicationWithRound) => app.roundId === action.roundID
       );
 
       if (index < 0) {
