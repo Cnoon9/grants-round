@@ -1,10 +1,21 @@
 import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
 import { Address } from "viem";
 import { RoundApplicationMetadata } from "./roundApplication.types";
-// TODO `RoundPayoutType` and `RoundVisibilityType` are duplicated from `common` to
-// avoid further spaghetti dependencies. They should probably be relocated here.
-export type RoundPayoutType = "allov1.Direct" | "allov1.QF";
+export type RoundPayoutType =
+  | "allov1.Direct"
+  | "allov1.QF"
+  | "allov2.DirectGrantsSimpleStrategy"
+  | "allov2.DirectGrantsLiteStrategy"
+  | "allov2.DonationVotingMerkleDistributionDirectTransferStrategy"
+  | "allov2.DirectAllocationStrategy"
+  | ""; // This is to handle the cases where the strategyName is not set in a round, mostly spam rounds
 export type RoundVisibilityType = "public" | "private";
+
+// Note: this also exists in `common` and not able to import from there due to circular dependency.
+export enum RoundCategory {
+  QuadraticFunding,
+  Direct,
+}
 
 export type ApplicationStatus =
   | "PENDING"
@@ -74,6 +85,7 @@ export type AddressAndRole = {
 export type Project = {
   grantApplicationId: string;
   projectRegistryId: string;
+  anchorAddress?: string;
   recipient: string;
   projectMetadata: ProjectMetadata;
   grantApplicationFormAnswers: GrantApplicationFormAnswer[];
@@ -200,6 +212,8 @@ export type v2Project = {
    * The linked chains to the canonical project
    */
   linkedChains?: number[];
+  qfRounds?: string[];
+  dgRounds?: string[];
 };
 
 /**
@@ -232,6 +246,25 @@ export type ProjectApplicationMetadata = {
 };
 
 /**
+ * The round type with applications for v1
+ **/
+
+export type RoundWithApplications = Omit<RoundGetRound, "applications"> & {
+  applications: Application[];
+};
+
+export type RoundForExplorer = Omit<RoundGetRound, "applications"> & {
+  applications: (Application & { anchorAddress: Address })[];
+  uniqueDonorsCount?: number;
+};
+
+export type BaseDonorValues = {
+  totalAmountDonatedInUsd: number;
+  totalDonationsCount: number;
+  uniqueDonorsCount: number;
+};
+
+/**
  * The project application type for v2
  *
  */
@@ -243,9 +276,11 @@ export type ProjectApplication = {
   status: ApplicationStatus;
   metadataCid: string;
   metadata: ProjectApplicationMetadata;
-};
+  distributionTransaction: string | null;
+} & BaseDonorValues;
 
 export type ProjectApplicationForManager = ProjectApplication & {
+  anchorAddress: Address;
   statusSnapshots: {
     status: ApplicationStatus;
     updatedAtBlock: string;
@@ -261,6 +296,7 @@ export type ProjectApplicationForManager = ProjectApplication & {
 };
 
 export type ProjectApplicationWithRound = ProjectApplication & {
+  anchorAddress: Address;
   round: {
     applicationsStartTime: string;
     applicationsEndTime: string;
@@ -268,6 +304,22 @@ export type ProjectApplicationWithRound = ProjectApplication & {
     donationsEndTime: string;
     roundMetadata: RoundMetadata;
     name: string;
+    strategyName: RoundPayoutType;
+  };
+};
+
+export type ProjectApplicationWithRoundAndProgram = ProjectApplication & {
+  anchorAddress: Address;
+  round: {
+    applicationsStartTime: string;
+    applicationsEndTime: string;
+    donationsStartTime: string;
+    donationsEndTime: string;
+    roundMetadata: RoundMetadata;
+    project: {
+      name: string;
+    };
+    strategyName: RoundPayoutType;
   };
 };
 
@@ -290,7 +342,8 @@ export type V2Round = {
   projectId: string;
   strategyAddress: Address;
   strategyName: string;
-  isReadyForPayout: boolean;
+  readyForPayoutTransaction: string | null;
+  tags: string[];
 };
 
 /**
@@ -302,6 +355,29 @@ export type V2RoundWithProject = V2RoundWithRoles & {
     name: string;
     metadata: ProgramMetadata;
   };
+};
+
+export type DistributionMatch = {
+  projectId: string;
+  projectName: string;
+  applicationId: string;
+  anchorAddress: string;
+  matchPoolPercentage: number;
+  contributionsCount: number;
+  matchAmountInToken: string;
+  projectPayoutAddress: string;
+  originalMatchAmountInToken: string;
+};
+
+export type RoundForManager = V2RoundWithProject & {
+  matchingDistribution: {
+    matchingDistribution: DistributionMatch[];
+  } | null;
+  tags: string[];
+  matchAmount: string;
+  matchAmountInUsd: number;
+  fundedAmount: string;
+  fundedAmountInUsd: number;
 };
 
 export type ProjectApplicationWithProject = {
@@ -357,17 +433,23 @@ export type Eligibility = {
   requirements?: Requirement[];
 };
 
+export type SybilDefense = "passport" | "passport-mbds" | "none";
+
 export interface Round {
   /**
    * The on-chain unique round ID
    */
   id?: string;
   /**
+   * The chain ID of the network
+   */
+  chainId?: number;
+  /**
    * Metadata of the Round to be stored off-chain
    */
   roundMetadata?: {
     name: string;
-    roundType: RoundVisibilityType;
+    roundType?: RoundVisibilityType;
     eligibility: Eligibility;
     programContractAddress: string;
     quadraticFundingConfig?: {
@@ -376,7 +458,7 @@ export interface Round {
       matchingCapAmount?: number;
       minDonationThreshold?: boolean;
       minDonationThresholdAmount?: number;
-      sybilDefense?: boolean;
+      sybilDefense?: SybilDefense | boolean; // this is to support both old and new sybil defense types.
     };
     support?: {
       type: string;
@@ -398,7 +480,7 @@ export interface Round {
   /**
    * Voting contract address
    */
-  votingStrategy: string;
+  votingStrategy?: string;
   /**
    * Unix timestamp of the start of the round
    */
@@ -423,7 +505,7 @@ export interface Round {
   /**
    * Contract address of the program to which the round belongs
    */
-  ownedBy: string;
+  ownedBy?: string;
   /**
    * Addresses of wallets that will have admin privileges to operate the Grant program
    */
@@ -432,6 +514,7 @@ export interface Round {
    * List of projects approved for the round
    */
   approvedProjects?: Project[];
+  uniqueDonorsCount?: number;
 }
 
 export type TimeFilter = {
@@ -439,6 +522,7 @@ export type TimeFilter = {
   lessThan?: string;
   greaterThanOrEqualTo?: string;
   lessThanOrEqualTo?: string;
+  isNull?: boolean;
 };
 
 export type TimeFilterVariables = {
@@ -446,6 +530,7 @@ export type TimeFilterVariables = {
   applicationsEndTime?: TimeFilter;
   donationsStartTime?: TimeFilter;
   donationsEndTime?: TimeFilter;
+  or?: TimeFilterVariables[];
 };
 
 export type RoundsQueryVariables = {
@@ -512,6 +597,12 @@ export type SearchBasedProjectCategory = {
   searchQuery: string;
 };
 
+export type ExpandedApplicationRef = {
+  chainId: number;
+  roundId: string;
+  id: string;
+};
+
 export type Collection = {
   id: string;
   author: string;
@@ -525,6 +616,7 @@ export type RoundGetRound = {
   id: string;
   tags: string[];
   chainId: number;
+  ownedBy?: string;
   createdAtBlock: number;
   roundMetadataCid: string;
   roundMetadata: RoundMetadataGetRound;
@@ -542,7 +634,7 @@ export type RoundGetRound = {
 };
 
 export interface RoundMetadataGetRound {
-  name?: string;
+  name: string;
   support?: Support;
   eligibility: Eligibility;
   feesAddress?: string;
@@ -550,7 +642,7 @@ export interface RoundMetadataGetRound {
   feesPercentage?: number;
   programContractAddress: string;
   quadraticFundingConfig?: QuadraticFundingConfig;
-  roundType?: "public" | "private";
+  roundType?: RoundVisibilityType;
 }
 
 export interface Support {
@@ -565,7 +657,7 @@ export interface MatchingFunds {
 
 export interface QuadraticFundingConfig {
   matchingCap: boolean;
-  sybilDefense: boolean;
+  sybilDefense: SybilDefense | boolean;
   matchingCapAmount?: number;
   minDonationThreshold: boolean;
   matchingFundsAvailable: number;
@@ -640,6 +732,7 @@ export type Application = {
   totalAmountDonatedInUsd: number;
   totalDonationsCount: string;
   uniqueDonorsCount: number;
+  anchorAddress?: string;
   round: {
     strategyName: RoundPayoutType;
     donationsStartTime: string;
@@ -653,6 +746,7 @@ export type Application = {
   project: {
     id: string;
     metadata: ProjectMetadata;
+    anchorAddress?: string;
   };
   metadata: {
     application: {
@@ -660,4 +754,51 @@ export type Application = {
       answers: GrantApplicationFormAnswer[];
     };
   };
+};
+
+export type Contribution = {
+  id: string;
+  chainId: number;
+  projectId: string;
+  roundId: string;
+  recipientAddress: string;
+  applicationId: string;
+  tokenAddress: string;
+  donorAddress: string;
+  amount: string;
+  amountInUsd: number;
+  transactionHash: string;
+  blockNumber: number;
+  round: {
+    roundMetadata: RoundMetadata;
+    donationsStartTime: string;
+    donationsEndTime: string;
+    strategyName: RoundPayoutType;
+  };
+  application: {
+    project: {
+      name: string;
+    };
+  };
+  timestamp: string;
+};
+
+export type Payout = {
+  id: string;
+  tokenAddress: string;
+  amount: string;
+  amountInUsd: number;
+  transactionHash: string;
+  timestamp: string;
+  sender: string;
+};
+
+export type RoundApplicationPayout = {
+  id: string;
+  applications: [
+    {
+      id: string;
+      applicationsPayoutsByChainIdAndRoundIdAndApplicationId: Payout[];
+    },
+  ];
 };

@@ -15,6 +15,10 @@ import { RoundsGrid } from "./RoundsGrid";
 import LandingHero from "./LandingHero";
 import { LandingSection, ViewAllLink } from "./LandingSection";
 import { toQueryString } from "./RoundsFilter";
+// Note: use during grants rounds or when we figure out how to use all the time.
+// import { useCollections } from "../collections/hooks/useCollections";
+// import { CollectionsGrid } from "../collections/CollectionsGrid";
+// import { getAlloVersion } from "common/src/config";
 
 const LandingPage = () => {
   const activeRounds = useFilterRounds(
@@ -37,9 +41,21 @@ const LandingPage = () => {
     );
   }, [roundsEndingSoon.data]);
 
+  // const collections = useCollections();
+
   return (
-    <GradientLayout showWalletInteraction>
+    <GradientLayout showWalletInteraction showAlloVersionBanner={false}>
       <LandingHero />
+
+      {/* Note: This is being revisited for GG21 */}
+      {/* {getAlloVersion() === "allo-v2" && (
+        <LandingSection title="Community collections">
+          {collections.data !== undefined && (
+            <CollectionsGrid data={collections.data} />
+          )}
+        </LandingSection>
+      )} */}
+
       <LandingSection
         title="Donate now"
         action={

@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { ethers } from "ethers";
 import { act } from "react-dom/test-utils";
 import { useParams } from "react-router-dom";
-import { useBalance, useDisconnect, useSwitchNetwork } from "wagmi";
+import wagmi, { UseBalanceReturnType } from "wagmi";
 import {
   makeRoundData,
   wrapWithBulkUpdateGrantApplicationContext,
@@ -12,17 +12,30 @@ import {
   wrapWithRoundContext,
 } from "../../../test-utils";
 import * as merklePayoutStrategy from "../../api/payoutStrategy/payoutStrategy";
-import * as roundTs from "../../api/round";
 import { MatchingStatsData, ProgressStatus, Round } from "../../api/types";
 import ViewFundGrantees from "../ViewFundGrantees";
 import { faker } from "@faker-js/faker";
 import { parseEther } from "ethers/lib/utils";
 
 jest.mock("../../common/Auth");
-jest.mock("wagmi");
+jest.mock("wagmi", () => ({
+  useBalance: () => ({
+    data: { formatted: "0", value: "0" },
+    error: null,
+    loading: false,
+  }),
+  useSwitchChain: () => ({
+    switchChain: jest.fn(),
+  }),
+  useDisconnect: jest.fn(),
+  useAccount: () => ({
+    chainId: 1,
+  }),
+}));
 
 jest.mock("@rainbow-me/rainbowkit", () => ({
   ConnectButton: jest.fn(),
+  getDefaultConfig: jest.fn(),
 }));
 
 Object.assign(navigator, {
@@ -48,19 +61,14 @@ jest.mock("../../common/Auth", () => ({
   }),
 }));
 
-const useFetchMatchingDistributionFromContractMock = jest.spyOn(
-  merklePayoutStrategy,
-  "useFetchMatchingDistributionFromContract"
-);
+jest.mock("common", () => ({
+  ...jest.requireActual("common"),
+  useAllo: jest.fn(),
+}));
 
 const useGroupProjectsByPaymentStatusMock = jest.spyOn(
   merklePayoutStrategy,
   "useGroupProjectsByPaymentStatus"
-);
-
-const fetchMatchingDistributionMock = jest.spyOn(
-  roundTs,
-  "fetchMatchingDistribution"
 );
 
 describe("View Fund Grantees", () => {
@@ -126,20 +134,6 @@ describe("View Fund Grantees", () => {
   ];
 
   beforeEach(() => {
-    useFetchMatchingDistributionFromContractMock.mockReturnValue({
-      distributionMetaPtr: "some-meta-ptr",
-      matchingDistributionContract: matchingStatsData,
-      isLoading: false,
-      isError: false,
-    });
-
-    fetchMatchingDistributionMock.mockReturnValue(
-      Promise.resolve({
-        distributionMetaPtr: "some-meta-ptr",
-        matchingDistribution: matchingStatsData,
-      })
-    );
-
     useGroupProjectsByPaymentStatusMock.mockReturnValue({
       paid: [matchingStatsData[0], matchingStatsData[1]],
       unpaid: [matchingStatsData[2], matchingStatsData[3]],
@@ -152,21 +146,12 @@ describe("View Fund Grantees", () => {
       };
     });
 
-    (useSwitchNetwork as jest.Mock).mockReturnValue({ chains: [] });
-    (useDisconnect as jest.Mock).mockReturnValue({});
     (useParams as jest.Mock).mockReturnValueOnce({
       id: undefined,
     });
   });
 
   it("displays non-finalized status when round is not finalized", () => {
-    useFetchMatchingDistributionFromContractMock.mockReturnValue({
-      distributionMetaPtr: "some-meta-ptr",
-      matchingDistributionContract: [],
-      isLoading: false,
-      isError: false,
-    });
-
     render(
       wrapWithBulkUpdateGrantApplicationContext(
         wrapWithReadProgramContext(
@@ -274,11 +259,15 @@ describe("View Fund Grantees", () => {
     });
 
     it("Should show the confirmation modal and close on cancel", async () => {
-      (useBalance as jest.Mock).mockImplementation(() => ({
-        data: { formatted: "0", value: ethers.utils.parseEther("1000") },
-        error: null,
-        loading: false,
-      }));
+      jest.spyOn(wagmi, "useBalance").mockImplementation(
+        () =>
+          ({
+            data: { formatted: "0", value: ethers.utils.parseEther("1000") },
+            error: null,
+            loading: false,
+          }) as unknown as UseBalanceReturnType<unknown>
+      );
+
       await act(async () => {
         const checkboxes = screen.queryAllByTestId("project-checkbox");
         checkboxes[0].click();
@@ -300,11 +289,14 @@ describe("View Fund Grantees", () => {
     });
 
     it("Should show the progress modal", async () => {
-      (useBalance as jest.Mock).mockImplementation(() => ({
-        data: { formatted: "0", value: ethers.utils.parseEther("1000") },
-        error: null,
-        loading: false,
-      }));
+      jest.spyOn(wagmi, "useBalance").mockImplementation(
+        () =>
+          ({
+            data: { formatted: "0", value: ethers.utils.parseEther("1000") },
+            error: null,
+            loading: false,
+          }) as unknown as UseBalanceReturnType<unknown>
+      );
       await act(async () => {
         const checkboxes = screen.queryAllByTestId("project-checkbox");
         checkboxes[0].click();
@@ -324,11 +316,14 @@ describe("View Fund Grantees", () => {
     });
 
     it("Should show the warning when not enough funds in contract", async () => {
-      (useBalance as jest.Mock).mockImplementation(() => ({
-        data: { formatted: "0", value: "0" },
-        error: null,
-        loading: false,
-      }));
+      jest.spyOn(wagmi, "useBalance").mockImplementation(
+        () =>
+          ({
+            data: { formatted: "0", value: "0" },
+            error: null,
+            loading: false,
+          }) as unknown as UseBalanceReturnType<unknown>
+      );
       await act(async () => {
         const checkboxes = screen.queryAllByTestId("project-checkbox");
         checkboxes[0].click();

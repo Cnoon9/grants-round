@@ -1,11 +1,10 @@
 import useSWR, { SWRResponse } from "swr";
-import { ChainId } from "common";
 import { createISOTimestamp } from "../discovery/utils/createRoundsStatusFilter";
 import { RoundGetRound, RoundsQueryVariables, useDataLayer } from "data-layer";
 
 export const useRounds = (
   variables: RoundsQueryVariables,
-  chainIds: ChainId[]
+  chainIds: number[]
 ): SWRResponse<RoundGetRound[]> => {
   const dataLayer = useDataLayer();
 
@@ -18,14 +17,22 @@ export const useRounds = (
         fetchSpamRounds(),
         dataLayer.getRounds({
           ...variables,
-          first: 100,
+          first: 500,
           chainIds,
         }),
       ]);
 
       return rounds.filter(
-        (round) => !spamRounds[round.chainId]?.[round.id.toLowerCase()]
+        (round) =>
+          !spamRounds[round.chainId]?.[round.id.toLowerCase()] &&
+          round.strategyName !== ""
       );
+    },
+    {
+      revalidateIfStale: false,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateFirstPage: false,
     }
   );
 
@@ -86,11 +93,11 @@ export async function fetchSpamRounds(): Promise<SpamRoundsMaps> {
         const url = columns[1];
         // extract chainId and roundId
         const regex =
-          /https:\/\/explorer\.gitcoin\.co\/#\/round\/(\d+)\/([0-9a-fA-Fx]+)/;
+          /https:\/\/(explorer|explorer-v1)\.gitcoin\.co\/#\/round\/(\d+)\/([0-9a-fA-Fx]+)/;
         const match = url.match(regex);
         if (match) {
-          const chainId = parseInt(match[1]);
-          const roundId = match[2].toLowerCase();
+          const chainId = parseInt(match[2]);
+          const roundId = match[3].toLowerCase();
           spam[chainId] ||= {};
           spam[chainId][roundId] = true;
         }

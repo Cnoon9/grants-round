@@ -1,4 +1,3 @@
-import { Chain } from "wagmi/chains";
 import { useRounds } from "../../api/rounds";
 import { createRoundsStatusFilter } from "../utils/createRoundsStatusFilter";
 import { SWRResponse } from "swr";
@@ -9,10 +8,10 @@ import {
   TimeFilterVariables,
 } from "data-layer";
 import { isEmpty } from "lodash";
-import { ROUND_PAYOUT_MERKLE } from "common";
 import { useMemo } from "react";
 import { AlloVersion } from "data-layer/dist/data-layer.types";
-import { getConfig } from "common/src/config";
+import { getAlloVersion } from "common/src/config";
+import { TChain } from "common";
 
 export type StrategyName =
   | ""
@@ -59,7 +58,7 @@ export enum RoundStatus {
 export const ACTIVE_ROUNDS_FILTER: RoundSelectionParams = {
   orderBy: "MATCH_AMOUNT_IN_USD_DESC",
   status: RoundStatus.active,
-  type: ROUND_PAYOUT_MERKLE,
+  type: "allov2.DonationVotingMerkleDistributionDirectTransferStrategy,allov1.QF",
   network: "",
 };
 
@@ -75,9 +74,8 @@ export const ROUNDS_ENDING_SOON_FILTER: RoundSelectionParams & {
 
 export const useFilterRounds = (
   where: RoundSelectionParams,
-  chains: Chain[]
+  chains: TChain[]
 ): SWRResponse<RoundGetRound[]> => {
-  const config = getConfig();
   const chainIds =
     where.network === undefined || where.network.trim() === ""
       ? chains.map((c) => c.id)
@@ -91,11 +89,15 @@ export const useFilterRounds = (
     where.type === undefined || where.type.trim() === ""
       ? []
       : where.type.split(",");
+  const alloVersion = getAlloVersion();
+  const statuses = where.status.split(",");
   const filter = createRoundWhereFilter(
     statusFilter,
     strategyNames,
     chainIds,
-    config.allo.version
+    statuses.includes(RoundStatus.finished) && alloVersion === "allo-v2"
+      ? undefined
+      : alloVersion
   );
   const orderBy =
     where.orderBy === undefined ? "CREATED_AT_BLOCK_DESC" : where.orderBy;
@@ -107,7 +109,7 @@ const createRoundWhereFilter = (
   statusFilter: TimeFilterVariables[],
   strategyNames: string[],
   chainIds: number[],
-  version: AlloVersion
+  version: AlloVersion | undefined
 ): RoundsQueryVariables["filter"] => {
   return {
     // @ts-expect-error TS thinks that some of the items can be undefined,
