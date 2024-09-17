@@ -5,8 +5,8 @@ import {
   useEffect,
   useReducer,
 } from "react";
-import { getRoundById } from "../features/api/round";
 import { Round } from "../features/api/types";
+import { DataLayer, useDataLayer } from "data-layer";
 
 export interface RoundState {
   rounds: Round[];
@@ -14,6 +14,12 @@ export interface RoundState {
   listRoundsError?: Error;
   getRoundByIdError?: Error;
   currentRoundId?: string;
+}
+
+export class RoundNotFoundError extends Error {
+  constructor(chainId: number, roundId: string) {
+    super(`Round not found: chainId=${chainId}, roundId=${roundId}`);
+  }
 }
 
 enum ActionType {
@@ -36,7 +42,7 @@ type Dispatch = (action: Action) => void;
 
 export const initialRoundState: RoundState = {
   rounds: [],
-  isLoading: false,
+  isLoading: true,
 };
 
 export const RoundContext = createContext<
@@ -64,6 +70,8 @@ const roundReducer = (state: RoundState, action: Action) => {
         getRoundByIdError: undefined,
       };
     case ActionType.SET_ERROR_GET_ROUND:
+      // log error to console to be sure we can debug it
+      console.error(action.payload);
       return { ...state, getRoundByIdError: action.payload };
     case ActionType.SET_ROUND_ID:
       return { ...state, currentRoundId: action.payload };
@@ -74,7 +82,6 @@ const roundReducer = (state: RoundState, action: Action) => {
 
 export const RoundProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(roundReducer, initialRoundState);
-
   const providerProps = { state, dispatch };
 
   return (
@@ -84,11 +91,30 @@ export const RoundProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-function fetchRoundsById(dispatch: Dispatch, chainId: string, roundId: string) {
+function fetchRoundsById(
+  dispatch: Dispatch,
+  dataLayer: DataLayer,
+  chainId: number,
+  roundId: string
+) {
   dispatch({ type: ActionType.SET_LOADING, payload: true });
 
-  getRoundById(roundId, chainId)
-    .then((round) => dispatch({ type: ActionType.ADD_ROUND, payload: round }))
+  dataLayer
+    .getRoundForExplorer({
+      roundId,
+      chainId,
+    })
+    .then((result) => {
+      if (result === null) {
+        dispatch({
+          type: ActionType.SET_ERROR_GET_ROUND,
+          payload: new RoundNotFoundError(chainId, roundId),
+        });
+      } else {
+        const { round } = result;
+        dispatch({ type: ActionType.ADD_ROUND, payload: round });
+      }
+    })
     .catch((error) =>
       dispatch({ type: ActionType.SET_ERROR_GET_ROUND, payload: error })
     )
@@ -96,7 +122,7 @@ function fetchRoundsById(dispatch: Dispatch, chainId: string, roundId: string) {
 }
 
 export const useRoundById = (
-  chainId: string,
+  chainId: number,
   roundId: string
 ): {
   round?: Round;
@@ -107,22 +133,27 @@ export const useRoundById = (
   if (context === undefined) {
     throw new Error("useRoundById must be used within a RoundProvider");
   }
+  const dataLayer = useDataLayer();
 
   useEffect(() => {
     context.dispatch({ type: ActionType.SET_ROUND_ID, payload: roundId });
     if (roundId) {
       const existingRound = context.state.rounds.find(
-        (round) => round.id === roundId
+        (round) => round.id === roundId && round.chainId === chainId
       );
 
-      if (!existingRound) {
-        fetchRoundsById(context.dispatch, chainId, roundId);
+      if (!existingRound?.token) {
+        fetchRoundsById(context.dispatch, dataLayer, chainId, roundId);
       }
     }
   }, [chainId, roundId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const round = context.state.rounds.find(
+    (round) => round.id === roundId && round.chainId === chainId
+  );
+
   return {
-    round: context.state.rounds.find((round) => round.id === roundId),
+    round: round,
     isLoading: context.state.isLoading,
     getRoundByIdError: context.state.getRoundByIdError,
   };

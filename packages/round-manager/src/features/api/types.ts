@@ -1,17 +1,22 @@
-/**
+ /**
  * Supported EVM networks
  */
-import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
 import { Signer } from "@ethersproject/abstract-signer";
 import { Web3Provider } from "@ethersproject/providers";
+import { VerifiableCredential } from "@gitcoinco/passport-sdk-types";
+import { RoundVisibilityType } from "common";
+import { BigNumber } from "ethers";
+import { Address } from "viem";
+import { SchemaQuestion } from "./utils";
+import { AddressAndRole, RoundForManager, SybilDefense } from "data-layer";
 
-export type Network = "goerli" | "optimism";
+export type Network = "optimism" | "fantom" | "pgn";
 
 export interface Web3Instance {
   /**
    * Currently selected address in ETH format i.e 0x...
    */
-  address: string;
+  address: Address;
   /**
    * Chain ID & name of the currently connected network
    */
@@ -44,12 +49,14 @@ export interface IPFSObject {
   /**
    * File content to be saved in IPFS
    */
+  // eslint-disable-next-line @typescript-eslint/ban-types
   content: object | Blob;
   /**
    * Optional metadata
    */
   metadata?: {
     name?: string;
+    // eslint-disable-next-line @typescript-eslint/ban-types
     keyvalues?: object;
   };
 }
@@ -90,6 +97,10 @@ export interface Program {
    */
   operatorWallets: Array<string>;
   /**
+   * Address which created the program
+   */
+  createdByAddress?: string;
+  /**
    * Network Chain Information
    */
   chain?: {
@@ -97,40 +108,73 @@ export interface Program {
     name?: string;
     logo?: string;
   };
+
+  tags?: string[];
+  roles?: AddressAndRole[];
+  qfRoundsCount?: number;
+  dgRoundsCount?: number;
 }
 
-export type InputType = "email" | "number" | "text";
+export type InputType =
+  | "email"
+  | "address"
+  | "number"
+  | "text"
+  | "short-answer"
+  | "paragraph"
+  | "multiple-choice"
+  | "checkbox"
+  | "dropdown"
+  | "link";
 
-export type QuestionOptions = {
-  title: string;
-  required: boolean;
-  encrypted: boolean;
-  inputType: InputType;
+export type EditQuestion = {
+  index?: number;
+  field?: SchemaQuestion;
+};
+
+export type ProjectRequirements = {
+  twitter: {
+    required: boolean;
+    verification: boolean;
+  };
+  github: {
+    required: boolean;
+    verification: boolean;
+  };
 };
 
 export interface ApplicationMetadata {
-  questions?: QuestionOptions[];
+  questions?: SchemaQuestion[];
+  requirements: ProjectRequirements;
 }
 
 export interface Round {
+  strategyName: string;
   /**
    * The on-chain unique round ID
    */
-  id?: string;
+  id: string;
+
+  chainId?: number;
+
   /**
    * Metadata of the Round to be stored off-chain
    */
   roundMetadata: {
     name: string;
     programContractAddress: string;
+    roundType: RoundVisibilityType;
     eligibility?: {
       description: string;
       requirements: { requirement: string }[];
     };
-    matchingFunds?: {
+    quadraticFundingConfig: {
       matchingFundsAvailable: number;
       matchingCap: boolean;
       matchingCapAmount?: number;
+      minDonationThreshold?: boolean;
+      minDonationThresholdAmount?: number;
+      sybilDefense?: SybilDefense;
     };
     support?: {
       type: string;
@@ -156,7 +200,17 @@ export interface Round {
   /**
    * Payout contract address
    */
-  payoutStrategy: string;
+  payoutStrategy: {
+    id: string;
+    isReadyForPayout?: boolean;
+    vaultAddress?: string;
+    strategyName?: string;
+  };
+  /**
+   * Used in RoundCategory.Direct
+   * Is the address from where the grant will be paid out
+   */
+  vaultAddress?: string;
   /**
    * Unix timestamp of the start of the round
    */
@@ -165,6 +219,10 @@ export interface Round {
    * Unix timestamp of the end of the round
    */
   roundEndTime: Date;
+  /**
+   * enable/disable validations for round end time
+   */
+  roundEndTimeDisabled?: boolean;
   /**
    * Unix timestamp of when grants can apply to a round
    */
@@ -186,24 +244,66 @@ export interface Round {
    */
   operatorWallets?: Array<string>;
   /**
+   * List of addresses and their roles in the round
+   */
+  roles?: AddressAndRole[];
+  /**
    * List of projects approved for the round
    */
   approvedProjects?: ApprovedProject[];
+  /**
+   * Round fees percentage
+   */
+  feesPercentage?: number;
+  /**
+   * Round fees address
+   */
+  feesAddress?: string;
+
+  finalized: boolean;
+  protocolFeePercentage?: number;
+  roundFeePercentage?: number;
+  /**
+   * CreatedByAddress
+   */
+  createdByAddress?: string;
+  strategyAddress?: string;
+
+  tags?: string[];
+  fundedAmount: bigint;
+  fundedAmountInUsd: number;
+  matchAmount: bigint;
+  matchAmountInUsd: number;
+
+  matchingDistribution: RoundForManager["matchingDistribution"];
+  readyForPayoutTransaction: RoundForManager["readyForPayoutTransaction"];
 }
 
 export type MatchingStatsData = {
-  projectName?: string;
-  projectId: string;
-  uniqueContributorsCount: number;
+  index?: number;
+  projectName: string;
+  uniqueContributorsCount?: number;
+  contributionsCount: number;
   matchPoolPercentage: number;
+  projectId: string;
+  applicationId: string;
+  anchorAddress?: string;
+  matchAmountInToken: BigNumber;
+  originalMatchAmountInToken: BigNumber;
+  projectPayoutAddress: string;
+  status?: string;
+  hash?: string;
 };
 
 export type ProjectStatus =
   | "PENDING"
+  | "RECEIVED"
   | "APPROVED"
   | "REJECTED"
   | "APPEAL"
-  | "FRAUD";
+  | "FRAUD"
+  | "CANCELLED"
+  | "IN_REVIEW";
 
 export type ProjectCredentials = {
   [key: string]: VerifiableCredential;
@@ -266,13 +366,51 @@ export interface GrantApplication {
    * e.g IPFS, Ceramic etc.
    */
   projectsMetaPtr: MetadataPointer;
-  status?: ProjectStatus;
+  /**
+   * Status of each grant application
+   */
+  status: ProjectStatus; // handle round status 0,1,2,3
+  inReview?: boolean; // handle payoutStatus for DirectStrategy
+
+  // FIXME: this is needed in useApplciationsByRound.tsx because it's mandatory
+  // in the direct payout flow. Why is it optional? can we set it as mandatory?
+  projectId?: string;
+
+  payoutStrategy?: {
+    strategyName: string;
+    id: string;
+    payouts: {
+      applicationIndex: number;
+      amount: string;
+      createdAt: string;
+      txnHash: string;
+    }[];
+  };
+
+  distributionTransaction: string | null;
+
+  statusSnapshots?: {
+    status: ProjectStatus;
+    updatedAt: Date;
+  }[];
+
+  /**
+   * Index of a grant application
+   */
+  applicationIndex: number;
+  anchorAddress: string;
+
+  /**
+   * Created timestamp of a grant application
+   */
+  createdAt: string;
 }
 
 export type AnswerBlock = {
   questionId: number;
   question: string;
   answer?: string;
+  type?: string;
   encryptedAnswer?: {
     ciphertext: string;
     encryptedSymmetricKey: string;
@@ -291,7 +429,24 @@ export enum ApplicationStatus {
   PENDING = "PENDING",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
+  CANCELLED = "CANCELLED",
+  IN_REVIEW = "IN_REVIEW",
 }
+
+export type Status = {
+  index: number;
+  status: number;
+};
+
+export type StatusForDirectPayout = {
+  index: number;
+  status: boolean;
+};
+
+export type AppStatus = {
+  index: number;
+  statusRow: string;
+};
 
 export type ProgressStep = {
   name: string;
@@ -300,7 +455,8 @@ export type ProgressStep = {
 };
 
 export type Project = {
-  lastUpdated: number; // unix timestamp in milliseconds
+  lastUpdated: number; // unix timestamp in miliseconds
+  createdAt: number; // unix timestamp in miliseconds
   id: string;
   owners: ProjectOwner[];
   title: string;
@@ -309,7 +465,23 @@ export type Project = {
   bannerImg?: string;
   logoImg?: string;
   projectGithub?: string;
+  userGithub?: string;
   projectTwitter?: string;
   credentials: ProjectCredentials;
-  metaPtr: MetadataPointer;
+};
+
+export type TransactionBlock = {
+  transactionBlockNumber: number;
+  error?: unknown;
+};
+
+export type RevisedMatch = {
+  revisedContributionCount: number;
+  revisedMatch: bigint;
+  matched: bigint;
+  contributionsCount: number;
+  projectId: string;
+  applicationId: string;
+  projectName: string;
+  payoutAddress: string;
 };

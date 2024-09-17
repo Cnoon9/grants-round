@@ -2,17 +2,17 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { makeProgramData, renderWrapped } from "../../../test-utils";
 
-import { FormStepper } from "../../common/FormStepper";
-import { RoundDetailForm } from "../RoundDetailForm";
-import { FormContext } from "../../common/FormWizard";
-import { ChainId, CHAINS, getPayoutTokenOptions } from "../../api/utils";
-import { useWallet } from "../../common/Auth";
 import { faker } from "@faker-js/faker";
 import moment from "moment";
+import { FormStepper } from "../../common/FormStepper";
+import { FormContext } from "../../common/FormWizard";
+import { RoundDetailForm } from "../RoundDetailForm";
+import { getChainById } from "common";
 
 jest.mock("../../common/Auth");
 jest.mock("@rainbow-me/rainbowkit", () => ({
   ConnectButton: jest.fn(),
+  getDefaultConfig: jest.fn(),
 }));
 
 jest.mock("../../../constants", () => ({
@@ -20,25 +20,20 @@ jest.mock("../../../constants", () => ({
   errorModalDelayMs: 0, // NB: use smaller delay for faster tests
 }));
 
-beforeEach(() => {
-  (useWallet as jest.Mock).mockReturnValue({
-    chain: { id: ChainId.GOERLI_CHAIN_ID },
-  });
-});
 
 describe("<RoundDetailForm />", () => {
   it("renders round name input", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const roundNameInput = await screen.getByLabelText("Round Name");
+    const roundNameInput = screen.getByLabelText("Round Name");
     expect(roundNameInput).toBeInTheDocument();
   });
 
   it("requires round name input to not be empty", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const submitButton = await screen.getByRole("button", {
+    const submitButton = screen.getByRole("button", {
       name: /next|launch/i,
     });
-    const input = await screen.getByRole("textbox", {
+    const input = screen.getByRole("textbox", {
       name: /round name/i,
     });
     await act(async () => {
@@ -51,10 +46,10 @@ describe("<RoundDetailForm />", () => {
 
   it("requires round name to be longer than 8 characters", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const submitButton = await screen.getByRole("button", {
+    const submitButton = screen.getByRole("button", {
       name: /next|launch/i,
     });
-    const input = await screen.getByRole("textbox", {
+    const input = screen.getByRole("textbox", {
       name: /round name/i,
     });
     await act(async () => {
@@ -74,7 +69,7 @@ describe("<RoundDetailForm />", () => {
 
   it("renders submit button", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const nextButton = await screen.getByRole("button", {
+    const nextButton = screen.getByRole("button", {
       name: /next|launch/i,
     });
     expect(nextButton).toBeInTheDocument();
@@ -83,13 +78,13 @@ describe("<RoundDetailForm />", () => {
 
   it("renders date components", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const startDateInputs = await screen.getAllByLabelText("Start Date");
+    const startDateInputs = screen.getAllByLabelText("Start Date");
     expect(startDateInputs[0]).toBeInTheDocument();
     expect(startDateInputs[1]).toBeInTheDocument();
     expect(startDateInputs[0].id).toBe("applicationsStartTime");
     expect(startDateInputs[1].id).toBe("roundStartTime");
 
-    const endDateInputs = await screen.getAllByLabelText("End Date");
+    const endDateInputs = screen.getAllByLabelText("End Date");
     expect(endDateInputs[0]).toBeInTheDocument();
     expect(endDateInputs[1]).toBeInTheDocument();
     expect(endDateInputs[0].id).toBe("applicationsEndTime");
@@ -98,16 +93,22 @@ describe("<RoundDetailForm />", () => {
 
   it("renders contact information input", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const contactInfoInput = await screen.getByLabelText("Contact Information");
+    const contactInfoInput = screen.getByLabelText("Contact Information");
     expect(contactInfoInput).toBeInTheDocument();
+  });
+
+  it("renders round type selection radio button", async () => {
+    renderWrapped(<RoundDetailForm stepper={FormStepper} />);
+    const roundTypeRadioBtn = screen.getByTestId("round-type-selection");
+    expect(roundTypeRadioBtn).toBeInTheDocument();
   });
 
   it("requires contact information input to not be empty", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const submitButton = await screen.getByRole("button", {
+    const submitButton = screen.getByRole("button", {
       name: /next|launch/i,
     });
-    const input = await screen.getByRole("textbox", {
+    const input = screen.getByRole("textbox", {
       name: /contact information/i,
     });
     await act(async () => {
@@ -120,14 +121,14 @@ describe("<RoundDetailForm />", () => {
 
   it("requires contact information to be of type email when support type is email", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const submitButton = await screen.getByRole("button", {
+    const submitButton = screen.getByRole("button", {
       name: /next|launch/i,
     });
     const supportSelection = screen.getByTestId("support-type-select");
     fireEvent.click(supportSelection);
     const firstSupportOption = screen.getAllByTestId("support-type-option")[0];
     fireEvent.click(firstSupportOption);
-    const infoInput = await screen.getByRole("textbox", {
+    const infoInput = screen.getByRole("textbox", {
       name: /contact information/i,
     });
     await act(async () => {
@@ -148,14 +149,14 @@ describe("<RoundDetailForm />", () => {
 
   it("requires contact information to be of type URL when support type is NOT email", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const submitButton = await screen.getByRole("button", {
+    const submitButton = screen.getByRole("button", {
       name: /next|launch/i,
     });
     const supportSelection = screen.getByTestId("support-type-select");
     fireEvent.click(supportSelection);
     const firstSupportOption = screen.getAllByTestId("support-type-option")[1];
     fireEvent.click(firstSupportOption);
-    const infoInput = await screen.getByRole("textbox", {
+    const infoInput = screen.getByRole("textbox", {
       name: /contact information/i,
     });
     await act(async () => {
@@ -169,47 +170,13 @@ describe("<RoundDetailForm />", () => {
     });
     const error = infoInput.parentElement?.querySelector("p");
     expect(error).toBeInTheDocument();
-    expect(error).toHaveTextContent(
-      "roundMetadata.support.info must be a valid URL"
-    );
+    expect(error).toHaveTextContent("Must be a valid URL");
   });
 
-  it("validates round start time is after application start time", async () => {
+  it("validates applications end date is after applications start date.", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const startDateInputs = await screen.getAllByLabelText("Start Date");
-
-    await act(async () => {
-      /* Prefill round name to ignore errors from it */
-      fireEvent.input(screen.getByLabelText("Round Name"), {
-        target: { value: "testinground" },
-      });
-
-      /* Applicactions start date */
-      expect(startDateInputs[0].id).toBe("applicationsStartTime");
-      fireEvent.change(startDateInputs[0], {
-        target: { value: "08/25/2022 12:00 AM" },
-      });
-
-      /* Round start date */
-      expect(startDateInputs[1].id).toBe("roundStartTime");
-      fireEvent.change(startDateInputs[1], {
-        target: { value: "08/24/2022 12:00 AM" },
-      });
-
-      /* Trigger validation */
-      fireEvent.click(screen.getByText("Launch"));
-    });
-
-    const errors = await screen.getByText(
-      "Round start date must be later than applications start date"
-    );
-    expect(errors).toBeInTheDocument();
-  });
-
-  it("validates applications end date is after applications start date", async () => {
-    renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const startDateInputs = await screen.getAllByLabelText("Start Date");
-    const endDateInputs = await screen.getAllByLabelText("End Date");
+    const startDateInputs = screen.getAllByLabelText("Start Date");
+    const endDateInputs = screen.getAllByLabelText("End Date");
 
     await act(async () => {
       /* Prefill round name to ignore errors from it */
@@ -233,16 +200,16 @@ describe("<RoundDetailForm />", () => {
       fireEvent.click(screen.getByText("Launch"));
     });
 
-    const errors = await screen.getByText(
-      "Applications end date must be later than applications start date"
+    const errors = screen.getByText(
+      "Applications end date must be later than applications start date."
     );
     expect(errors).toBeInTheDocument();
   });
 
-  it("validates round end date is after round start date", async () => {
+  it("validates round end date is after round start date.", async () => {
     renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-    const startDateInputs = await screen.getAllByLabelText("Start Date");
-    const endDateInputs = await screen.getAllByLabelText("End Date");
+    const startDateInputs = screen.getAllByLabelText("Start Date");
+    const endDateInputs = screen.getAllByLabelText("End Date");
 
     await act(async () => {
       /* Prefill round name to ignore errors from it */
@@ -266,8 +233,8 @@ describe("<RoundDetailForm />", () => {
       fireEvent.click(screen.getByText("Launch"));
     });
 
-    const errors = await screen.getByText(
-      "Round end date must be later than the round start date"
+    const errors = screen.getByText(
+      "Round end date must be later than the round start date."
     );
     expect(errors).toBeInTheDocument();
   });
@@ -292,8 +259,8 @@ describe("<RoundDetailForm />", () => {
         <RoundDetailForm stepper={FormStepper} />
       </FormContext.Provider>
     );
-    const startDateInputs = await screen.getAllByLabelText("Start Date");
-    const endDateInputs = await screen.getAllByLabelText("End Date");
+    const startDateInputs = screen.getAllByLabelText("Start Date");
+    const endDateInputs = screen.getAllByLabelText("End Date");
 
     /* Round Name */
     fireEvent.input(screen.getByLabelText("Round Name"), {
@@ -339,15 +306,9 @@ describe("<RoundDetailForm />", () => {
       target: { value: moment(roundEndTime).format("MM/DD/YYYY h:mm A") },
     });
 
-    /* Payout Token */
-    const payoutTokenSelection = screen.getByTestId("payout-token-select");
-    fireEvent.click(payoutTokenSelection);
-    const firstTokenOption = screen.getAllByTestId("payout-token-option")[0];
-    fireEvent.click(firstTokenOption);
-
-    fireEvent.change(screen.getByTestId("matching-funds-available"), {
-      target: { value: 1 },
-    });
+    /* Round Type Selection */
+    const roundTypeOption = screen.getByTestId("round-type-public");
+    fireEvent.click(roundTypeOption);
 
     /* Trigger validation */
     fireEvent.click(screen.getByText("Next"));
@@ -379,9 +340,9 @@ describe("<RoundDetailForm />", () => {
   });
 
   it("renders program chain name", async () => {
-    const chain = CHAINS[ChainId.OPTIMISM_MAINNET_CHAIN_ID]!;
+    const chain = getChainById(10);
     const program = makeProgramData({
-      chain: { id: chain.id, name: chain.name, logo: chain.logo },
+      chain: { id: chain.id, name: chain.name, logo: chain.icon },
     });
 
     renderWrapped(
@@ -390,111 +351,5 @@ describe("<RoundDetailForm />", () => {
 
     expect(screen.getByText(chain.name!)).toBeInTheDocument();
     expect(screen.getByTestId("chain-logo")).toBeInTheDocument();
-  });
-
-  describe("Quadratic Funding Settings", () => {
-    it("renders the quadratic funding settings section", () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-
-      expect(
-        screen.getByText(/Quadratic Funding Settings/i)
-      ).toBeInTheDocument();
-    });
-
-    it("renders a dropdown list of tokens when payout token input is clicked", async () => {
-      const options = getPayoutTokenOptions(ChainId.GOERLI_CHAIN_ID);
-
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      const payoutTokenSelection = screen.getByTestId("payout-token-select");
-      fireEvent.click(payoutTokenSelection);
-
-      const selectOptions = await screen.findAllByTestId("payout-token-option");
-      expect(selectOptions).toHaveLength(options.length);
-    });
-
-    it("shows validation error message when the payout token is not selected", async () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      const payoutTokenSelection = screen.getByTestId("payout-token-select");
-      fireEvent.click(payoutTokenSelection);
-
-      fireEvent.click(screen.getByText("Launch"));
-
-      const errors = await screen.findByText(
-        "You must select a payout token for your round."
-      );
-      expect(errors).toBeInTheDocument();
-    });
-
-    it("renders matching funds available & matching cap input fields", () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-
-      expect(
-        screen.getByTestId("matching-funds-available")
-      ).toBeInTheDocument();
-      expect(screen.getByTestId("matching-cap-selection")).toBeInTheDocument();
-      expect(screen.getByTestId("matching-cap-true")).toBeInTheDocument();
-      expect(screen.getByTestId("matching-cap-false")).toBeInTheDocument();
-      expect(screen.getByTestId("matching-cap-percent")).toBeInTheDocument();
-    });
-
-    it("enables matching cap when matching cap is selected to 'Yes'", () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      fireEvent.click(screen.getByTestId("matching-cap-true"));
-
-      expect(screen.getByTestId("matching-cap-percent")).toBeEnabled();
-    });
-
-    it("defaults matching cap to be disabled", () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      expect(screen.getByTestId("matching-cap-percent")).toBeDisabled();
-    });
-
-    it("shows validation error message when matching funds amount is not provided", async () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      fireEvent.click(screen.getByText("Launch"));
-
-      const errors = await screen.findByText(
-        "Matching funds available must be valid number."
-      );
-      expect(errors).toBeInTheDocument();
-    });
-
-    it("shows validation error message when matching funds amount is <= zero", async () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      fireEvent.change(screen.getByTestId("matching-funds-available"), {
-        target: { value: 0 },
-      });
-      fireEvent.click(screen.getByText("Launch"));
-
-      const errors = await screen.findByText(
-        "Matching funds available must be more than zero."
-      );
-      expect(errors).toBeInTheDocument();
-    });
-
-    it("shows validation error message if matching cap percentage is not provided", async () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      fireEvent.click(screen.getByTestId("matching-cap-true"));
-      fireEvent.click(screen.getByText("Launch"));
-
-      const errors = await screen.findByText(
-        "You must provide an amount for the matching cap."
-      );
-      expect(errors).toBeInTheDocument();
-    });
-
-    it("shows validation error message if matching cap percentage is <= zero", async () => {
-      renderWrapped(<RoundDetailForm stepper={FormStepper} />);
-      fireEvent.click(screen.getByTestId("matching-cap-true"));
-      fireEvent.change(screen.getByTestId("matching-cap-percent"), {
-        target: { value: 0 },
-      });
-      fireEvent.click(screen.getByText("Launch"));
-
-      const errors = await screen.findByText(
-        "Matching cap amount must be more than zero."
-      );
-      expect(errors).toBeInTheDocument();
-    });
   });
 });

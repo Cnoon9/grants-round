@@ -8,15 +8,14 @@ This package serves the app which holds all the features w.r.t to
 - maintaining a round
 
 This package is meant to be used by the round operators
-It relies on the contracts deployed from the [contracts](../contracts) package.
-Indexed data can be queried by the graphs deployed from the [graph](../graph) package.
+Indexed data can be queried by the graphs deployed from Allo's [graph](https://github.com/Allo-Protocol/graph/blob/main/round/README.md) repository.
 
 ## Live Links
 
-| Env     | Git Branch | URL                               |
-| ------- | ---------- | --------------------------------- |
-| STAGING | main       | https://rmgitcoin.on.fleek.co/    |
-| LIVE    | release    | https://round-manager.gitcoin.co/ |
+| Env     | Git Branch | URL                                    |
+| ------- |------------|----------------------------------------|
+| STAGING | main       | https://manager-staging.vercel.app/    |
+| LIVE    | main       | https://manager.gitcoin.co/            |
 
 ## Directory Structure
 
@@ -24,17 +23,13 @@ Indexed data can be queried by the graphs deployed from the [graph](../graph) pa
 .
 ├── public                      # Public Assets
 ├── src
-│   ├── app                     # Stores/Hooks
 │   ├── features
-│       ├── auth                # components/services related to authentication/authorization
 │       ├── program             # Program related components/services
 │       ├── round               # Round related components/services
-│   ├── api.ts                  # Empty API service (feature APIs will inject endpoints)
 │   ├── browserPatches.tsx      # Browser polyfill
 │   ├── index.tsx               # Routes
 │   ├── index.css               # Global CSS
 ├── tsconfig.json               # Typescript configuration
-├── craco.json                  # Craco configuration
 ├── package.json                # Package configuration
 └── README.md
 ```
@@ -58,8 +53,8 @@ Since all the data is decentralized stored, there might be PII (Personally ident
 
 ### Development
 
-To contribute to this project, fork the project and follow the instructions at [DEV.md](docs/DEV.md)
+To contribute to this package, fork the repo and follow the instructions at [DEV.md](../../docs/DEV.md)
 
 ### Monitoring
 
-To setup monitoring for this project, follow the instructions at [MONITORING.md](docs/MONITORING.md)
+To set up monitoring for this project, follow the instructions at [MONITORING.md](docs/MONITORING.md)

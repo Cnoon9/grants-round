@@ -1,5 +1,5 @@
 import { GrantApplication, ProjectStatus } from "../api/types";
-import { Button } from "../common/styles";
+import { Button } from "common/src/styles";
 import { CheckIcon, XIcon } from "@heroicons/react/solid";
 import DefaultBannerImage from "../../assets/default_banner.png";
 import DefaultLogoImage from "../../assets/default_logo.png";
@@ -29,7 +29,7 @@ export function ApplicationLogo(props: {
   classNameOverride?: string;
 }) {
   const applicationLogoImage = props.application.project?.logoImg
-    ? `https://${process.env.REACT_APP_PINATA_GATEWAY}/ipfs/${props.application.project.logoImg}`
+    ? `${process.env.REACT_APP_IPFS_BASE_URL}/ipfs/${props.application.project.logoImg}`
     : DefaultLogoImage;
 
   return (
@@ -55,7 +55,7 @@ export function ApplicationBanner(props: {
   classNameOverride?: string;
 }) {
   const applicationBannerImage = props.application.project?.bannerImg
-    ? `https://${process.env.REACT_APP_PINATA_GATEWAY}/ipfs/${props.application.project.bannerImg}`
+    ? `${process.env.REACT_APP_IPFS_BASE_URL}/ipfs/${props.application.project.bannerImg}`
     : DefaultBannerImage;
 
   return (
@@ -80,21 +80,15 @@ export function AdditionalGasFeesNote() {
 }
 
 function MarkForRejection(props: {
-  checkSelection:
-    | "PENDING"
-    | "APPROVED"
-    | "REJECTED"
-    | "APPEAL"
-    | "FRAUD"
-    | undefined;
+  applicationStatus?: ProjectStatus;
   onClick: () => void;
 }) {
   return (
     <Button
       type="button"
       $variant="solid"
-      className={`border border-grey-400 w-9 h-8 p-2.5 ${
-        props.checkSelection === "REJECTED"
+      className={`border border-grey-400 w-10 h-10 p-2.5 px-3.5 py-2 ${
+        props.applicationStatus === "REJECTED"
           ? "bg-white text-pink-500"
           : "bg-grey-500 text-white"
       }`}
@@ -107,14 +101,14 @@ function MarkForRejection(props: {
 }
 
 function MarkForApproval(props: {
-  applicationStatus?: "PENDING" | "APPROVED" | "REJECTED" | "APPEAL" | "FRAUD";
+  applicationStatus?: ProjectStatus;
   onClick: () => void;
 }) {
   return (
     <Button
       type="button"
       $variant="solid"
-      className={`border border-grey-400 w-9 h-8 p-2.5 ${
+      className={`border border-grey-400 w-10 h-10 p-2.5 px-3.5 py-2 ${
         props.applicationStatus === "APPROVED"
           ? "bg-teal-400 text-grey-500"
           : "bg-grey-500 text-white"
@@ -127,15 +121,31 @@ function MarkForApproval(props: {
   );
 }
 
+function MarkForInReview(props: {
+  applicationStatus?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      $variant="solid"
+      className={`border border-grey-400 w-10 h-10 p-2.5 px-3.5 py-2 ${
+        props.applicationStatus === true
+          ? "bg-teal-400 text-grey-500"
+          : "bg-grey-500 text-white"
+      }`}
+      onClick={props.onClick}
+      data-testid="in-review-button"
+    >
+      <CheckIcon aria-hidden="true" />
+    </Button>
+  );
+}
+
 export function ApplicationHeader(props: {
   bulkSelect: boolean | undefined;
-  applicationStatus:
-    | "PENDING"
-    | "APPROVED"
-    | "REJECTED"
-    | "APPEAL"
-    | "FRAUD"
-    | undefined;
+  applicationStatus?: ProjectStatus | boolean;
+  inReviewOnClick?: () => void;
   approveOnClick?: () => void;
   rejectOnClick?: () => void;
   application: GrantApplication;
@@ -147,15 +157,24 @@ export function ApplicationHeader(props: {
           className="absolute right-4 top-4 gap-2 flex"
           data-testid="bulk-approve-reject-buttons"
         >
+          {props.inReviewOnClick && (
+            <MarkForInReview
+              data-testid="in-review-button"
+              applicationStatus={props.applicationStatus as boolean}
+              onClick={props.inReviewOnClick}
+            />
+          )}
           {props.approveOnClick && (
             <MarkForApproval
-              applicationStatus={props.applicationStatus}
+              data-testid="approve-button"
+              applicationStatus={props.applicationStatus as ProjectStatus}
               onClick={props.approveOnClick}
             />
           )}
           {props.rejectOnClick && (
             <MarkForRejection
-              checkSelection={props.applicationStatus}
+              data-testid="reject-button"
+              applicationStatus={props.applicationStatus as ProjectStatus}
               onClick={props.rejectOnClick}
             />
           )}
@@ -174,7 +193,7 @@ export function Cancel(props: { onClick: () => void }) {
     <Button
       type="button"
       $variant="outline"
-      className="text-xs text-pink-500"
+      className="text-xs text-pink-500 px-3.5 py-2"
       onClick={props.onClick}
     >
       Cancel
@@ -187,7 +206,7 @@ export function Select(props: { onClick: () => void }) {
     <Button
       type="button"
       $variant="outline"
-      className="text-xs bg-grey-150 border-none"
+      className="text-xs bg-grey-150 border-none px-3.5 py-2"
       onClick={props.onClick}
       data-testid="select"
     >
@@ -202,7 +221,7 @@ export function Continue(props: {
   onClick: () => void;
 }) {
   return (
-    <div className="fixed w-full left-0 bottom-0 bg-white">
+    <div className="fixed w-full left-0 bottom-0 bg-white z-20">
       <hr />
       <div className="flex justify-end items-center py-5 pr-20">
         <span className="text-grey-400 text-sm mr-6">
@@ -217,7 +236,7 @@ export function Continue(props: {
         <Button
           type="button"
           $variant="solid"
-          className="text-sm px-5"
+          className="text-sm px-3.5 py-2"
           onClick={props.onClick}
           data-testid="continue-button"
         >

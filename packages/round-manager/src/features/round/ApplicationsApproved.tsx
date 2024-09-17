@@ -1,5 +1,4 @@
 import { Link, useParams } from "react-router-dom";
-import { useWallet } from "../common/Auth";
 import { Spinner } from "../common/Spinner";
 import {
   BasicCard,
@@ -26,19 +25,24 @@ import {
   RejectedApplicationsCount,
   Select,
 } from "./BulkApplicationCommon";
-import { useApplicationByRoundId } from "../../context/application/ApplicationContext";
+import { useApplicationsByRoundId } from "../common/useApplicationsByRoundId";
 import { datadogLogs } from "@datadog/browser-logs";
 import { useBulkUpdateGrantApplications } from "../../context/application/BulkUpdateGrantApplicationContext";
 import ProgressModal from "../common/ProgressModal";
 import { errorModalDelayMs } from "../../constants";
 import ErrorModal from "../common/ErrorModal";
+import { getRoundStrategyType, useAllo } from "common";
 
 export default function ApplicationsApproved() {
   const { id } = useParams();
-  const { chain } = useWallet();
+  const allo = useAllo();
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const { applications, isLoading } = useApplicationByRoundId(id!);
+  if (id === undefined) {
+    throw new Error("id is undefined");
+  }
+
+const { data: applications, isLoading } = useApplicationsByRoundId(id);
+
   const approvedApplications =
     applications?.filter(
       (a: GrantApplication) =>
@@ -53,29 +57,22 @@ export default function ApplicationsApproved() {
 
   const {
     bulkUpdateGrantApplications,
-    IPFSCurrentStatus,
     contractUpdatingStatus,
     indexingStatus,
   } = useBulkUpdateGrantApplications();
   const isBulkUpdateLoading =
-    IPFSCurrentStatus == ProgressStatus.IN_PROGRESS ||
     contractUpdatingStatus == ProgressStatus.IN_PROGRESS ||
     indexingStatus == ProgressStatus.IN_PROGRESS;
 
   const progressSteps: ProgressStep[] = [
     {
-      name: "Storing",
-      description: "The metadata is being saved in a safe place.",
-      status: IPFSCurrentStatus,
-    },
-    {
       name: "Updating",
-      description: `Connecting to the ${chain.name} blockchain.`,
+      description: `Updating the application status on the contract`,
       status: contractUpdatingStatus,
     },
     {
       name: "Indexing",
-      description: "The subgraph is indexing the data.",
+      description: "Indexing the data.",
       status: indexingStatus,
     },
     {
@@ -89,10 +86,7 @@ export default function ApplicationsApproved() {
   ];
 
   useEffect(() => {
-    if (
-      IPFSCurrentStatus === ProgressStatus.IS_ERROR ||
-      contractUpdatingStatus === ProgressStatus.IS_ERROR
-    ) {
+    if (contractUpdatingStatus === ProgressStatus.IS_ERROR) {
       setTimeout(() => {
         setOpenErrorModal(true);
         setOpenProgressModal(false);
@@ -102,7 +96,7 @@ export default function ApplicationsApproved() {
     if (indexingStatus === ProgressStatus.IS_SUCCESS) {
       window.location.reload();
     }
-  }, [IPFSCurrentStatus, contractUpdatingStatus, indexingStatus]);
+  }, [contractUpdatingStatus, indexingStatus]);
 
   useEffect(() => {
     if (!isLoading || !bulkSelectApproved) {
@@ -114,6 +108,10 @@ export default function ApplicationsApproved() {
             recipient: application.recipient,
             projectsMetaPtr: application.projectsMetaPtr,
             status: application.status,
+            applicationIndex: application.applicationIndex,
+            createdAt: application.createdAt,
+            anchorAddress: application.anchorAddress,
+            distributionTransaction: application.distributionTransaction,
           };
         })
       );
@@ -144,13 +142,28 @@ export default function ApplicationsApproved() {
   };
 
   const handleBulkReview = async () => {
+    if (
+      allo === null ||
+      id === undefined ||
+      applications === undefined ||
+      applications[0].payoutStrategy?.strategyName === undefined ||
+      applications[0].payoutStrategy?.id === undefined
+    ) {
+      return;
+    }
+
     try {
       setOpenProgressModal(true);
       setOpenConfirmationModal(false);
       await bulkUpdateGrantApplications({
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        roundId: id!,
-        applications: selected.filter(
+        allo,
+        roundId: id,
+        applications: applications,
+        roundStrategy: getRoundStrategyType(
+          applications[0].payoutStrategy.strategyName
+        ),
+        roundStrategyAddress: applications[0].payoutStrategy.id,
+        selectedApplications: selected.filter(
           (application) => application.status === "REJECTED"
         ),
       });

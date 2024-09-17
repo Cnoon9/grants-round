@@ -1,11 +1,14 @@
-name: package/round-manager - Build -> Test
+name: Manager - Lint & Test & Typecheck
 on:
   push:
-  pull_request:
     branches:
       - main
+      - mrelease
+  pull_request:
+    branches:
+      - "**"
 jobs:
-  build-and-deploy:
+  lint-test-typecheck:
     concurrency: ci-round-manager-${{ github.head_ref || github.run_id }}
     runs-on: ubuntu-latest
     steps:
@@ -14,22 +17,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
-          cache: 'yarn'
-          cache-dependency-path: packages/round-manager/yarn.lock
+          node-version: "18"
+          cache: "pnpm"
 
       - name: Install Dependencies
         run: |
-          yarn install
-          cd packages/round-manager
-          yarn install --frozen-lockfile
+          pnpm install
 
-      - name: Build Round Manager
+      - name: Lint Round Manager
         run: |
-          yarn rm-build
+          pnpm lint:manager
 
       - name: Test Round Manager
         run: |
-          yarn rm-test
+          pnpm test:manager
+
+      - name: Typecheck Round Manager
+        run: |
+          pnpm typecheck:manager

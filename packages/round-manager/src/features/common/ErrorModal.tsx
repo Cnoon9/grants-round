@@ -1,6 +1,6 @@
 import React, { Fragment } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { Button } from "./styles";
+import { Button } from "common/src/styles";
 import { InformationCircleIcon } from "@heroicons/react/outline";
 
 interface ErrorModalProps {
@@ -17,9 +17,7 @@ export default function ErrorModal({
   setIsOpen,
   heading = "Error",
   subheading = "There has been a systems error during the deployment of your Grant Program.",
-  tryAgainFn = () => {
-    /**/
-  },
+  tryAgainFn,
   doneFn = () => setIsOpen(false),
 }: ErrorModalProps) {
   return (
@@ -80,20 +78,23 @@ export default function ErrorModal({
                     </div>
                   </div>
                   <div className="self-end mt-12">
+                    {tryAgainFn !== undefined && (
+                      <Button
+                        type="button"
+                        $variant="outline"
+                        className="w-full inline-flex text-sm sm:ml-3 sm:w-auto px-3.5 py-2"
+                        data-testid="tryAgain"
+                        onClick={() => {
+                          tryAgainFn();
+                          setIsOpen(false);
+                        }}
+                      >
+                        Try Again
+                      </Button>
+                    )}
                     <Button
                       type="button"
-                      $variant="outline"
-                      data-testid="tryAgain"
-                      onClick={() => {
-                        tryAgainFn();
-                        setIsOpen(false);
-                      }}
-                      className="mr-4"
-                    >
-                      Try Again
-                    </Button>
-                    <Button
-                      type="button"
+                      className="w-full inline-flex text-sm sm:ml-3 sm:w-auto px-3.5 py-2"
                       onClick={() => {
                         doneFn();
                         setIsOpen(false);

@@ -1,228 +1,425 @@
-import fetchMock from "jest-fetch-mock";
-
-fetchMock.enableMocks();
-
-import {
-  makeApprovedProjectData,
-  makeRoundData,
-  mockBalance,
-  mockNetwork,
-  mockSigner,
-  renderWithContext,
-} from "../../../test-utils";
-import { fireEvent, screen } from "@testing-library/react";
-import ViewProjectDetails from "../ViewProjectDetails";
 import { faker } from "@faker-js/faker";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act } from "react-dom/test-utils";
+import {
+  renderComponentsBasedOnDeviceSize,
+  renderWithContext,
+  setWindowDimensions,
+} from "../../../test-utils";
+import ViewProjectDetails from "../ViewProjectDetails";
+import { truncate } from "../../common/utils/truncate";
+import { formatDateWithOrdinal } from "common";
+import { useApplication } from "../../projects/hooks/useApplication";
+import { beforeEach, expect, Mock } from "vitest";
+import { Application, DataLayer } from "data-layer";
 
-const chainId = faker.datatype.number();
-const roundId = faker.finance.ethereumAddress();
-const grantApplicationId = "";
-const useParamsFn = () => ({
-  chainId,
-  roundId,
-  applicationId: grantApplicationId,
+vi.mock("../../common/Navbar");
+vi.mock("../../common/Auth");
+vi.mock("@rainbow-me/rainbowkit", () => ({
+  ConnectButton: vi.fn(),
+}));
+
+vi.mock("common", async () => {
+  const actual = await vi.importActual<typeof import("common")>("common");
+  return {
+    ...actual,
+    useParams: vi.fn().mockImplementation(() => ({
+      chainId: 1,
+      roundId: "1",
+      applicationId: "0xdeadbeef-0xdeadbeef",
+    })),
+  };
 });
-const userAddress = faker.finance.ethereumAddress();
-const mockAccount = {
-  address: userAddress,
+
+vi.mock("wagmi", async () => {
+  const actual = await vi.importActual<typeof import("wagmi")>("wagmi");
+  return {
+    ...actual,
+    useSigner: () => ({
+      data: {},
+    }),
+    useEnsName: vi.fn().mockReturnValue({ data: "" }),
+    useAccount: vi.fn().mockReturnValue({ data: "mockedAccount" }),
+  };
+});
+
+vi.mock("../../projects/hooks/useApplication", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../projects/hooks/useApplication")
+  >("../../projects/hooks/useApplication");
+
+  return {
+    ...actual,
+    useApplication: vi.fn().mockReturnValue({ data: "" }),
+  };
+});
+
+vi.mock("react-router-dom", async () => {
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom"
+    );
+
+  return {
+    ...actual,
+    useNavigate: vi.fn(),
+    useParams: vi.fn().mockImplementation(() => ({
+      chainId: 1,
+      roundId: "1",
+      applicationId: "0xdeadbeef-0xdeadbeef",
+    })),
+  };
+});
+
+const expectedProject: Application = {
+  uniqueDonorsCount: 0,
+  chainId: "1",
+  id: faker.finance.ethereumAddress(),
+  metadata: {
+    application: {
+      answers: [
+        {
+          answer: "never gonna give you up",
+          hidden: false,
+          question: "never gonna let you down",
+          questionId: 0,
+          type: "string",
+        },
+        {
+          questionId: 1,
+          question: "this is a hidden question",
+          answer: "this will not show up",
+          hidden: true,
+        },
+        {
+          questionId: 2,
+          question: "array of strings",
+          answer: ["first option", "second option"],
+          hidden: false,
+        },
+      ],
+      recipient: faker.finance.ethereumAddress(),
+    },
+  },
+  project: {
+    id: faker.finance.ethereumAddress(),
+    metadata: {
+      createdAt: Date.now(),
+      title: "Project test",
+      description: "Best project in the world",
+      website: "test.com",
+      owners: [],
+      bannerImg: "banner!",
+      logoImg: "logo!",
+      projectTwitter: "twitter.com/project",
+      projectGithub: "github.com/project",
+      userGithub: "github.com/user",
+      lastUpdated: 0,
+      credentials: {},
+    },
+  },
+  projectId: faker.finance.ethereumAddress(),
+  round: {
+    strategyName: "allov1.QF",
+    applicationsEndTime: new Date().valueOf().toString(),
+    applicationsStartTime: new Date().valueOf().toString(),
+    donationsEndTime: new Date().valueOf().toString(),
+    donationsStartTime: new Date().valueOf().toString(),
+    matchTokenAddress: faker.finance.ethereumAddress(),
+    roundMetadata: {
+      name: "",
+      roundType: "public",
+      eligibility: {
+        description: "",
+      },
+      programContractAddress: "",
+    },
+    tags: [],
+  },
+  roundId: faker.finance.ethereumAddress(),
+  status: "APPROVED",
+  totalAmountDonatedInUsd: 0,
+  totalDonationsCount: "0",
 };
 
-jest.mock("../../common/Navbar");
-jest.mock("../../common/Auth");
-jest.mock("@rainbow-me/rainbowkit", () => ({
-  ConnectButton: jest.fn(),
-}));
-
-jest.mock("wagmi", () => ({
-  useAccount: () => mockAccount,
-  useBalance: () => mockBalance,
-  useSigner: () => mockSigner,
-  useNetwork: () => mockNetwork,
-}));
-jest.mock("react-router-dom", () => ({
-  ...jest.requireActual("react-router-dom"),
-  useParams: useParamsFn,
-}));
+const mockDataLayer = {
+  getRoundForExplorer: vi.fn().mockResolvedValue({
+    rounds: [],
+  }),
+} as unknown as DataLayer;
 
 describe("<ViewProjectDetails/>", () => {
-  it("shows project name", async () => {
-    const expectedProject = makeApprovedProjectData({ grantApplicationId });
-    const expectedProjectName = expectedProject.projectMetadata.title;
-
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
+  beforeEach(() => {
+    (useApplication as Mock).mockReturnValue({
+      data: expectedProject,
     });
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
+  });
 
-    expect(await screen.findByText(expectedProjectName)).toBeInTheDocument();
+  it("shows project name", async () => {
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
+    });
+    expect(
+      await screen.findByText(expectedProject.project.metadata.title)
+    ).toBeInTheDocument();
   });
 
   describe("Show project details", () => {
-    const expectedProject = makeApprovedProjectData({ grantApplicationId });
-    const expectedProjectWebsite = expectedProject.projectMetadata.website;
-
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
-    });
-
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       renderWithContext(<ViewProjectDetails />, {
-        rounds: [roundWithProjects],
+        roundState: {
+          rounds: [],
+          isLoading: false,
+        },
+        dataLayer: mockDataLayer,
       });
     });
 
     it("shows project recipient", async () => {
-      expect(await screen.getByTestId("project-recipient")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          truncate(expectedProject.metadata.application.recipient)
+        )
+      ).toBeInTheDocument();
     });
 
     it("shows project website", async () => {
       expect(
-        await screen.findByText(expectedProjectWebsite)
+        await screen.findByText(expectedProject.project.metadata.website)
       ).toBeInTheDocument();
     });
 
     it("shows project twitter", async () => {
-      expect(screen.getByTestId("project-twitter")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          expectedProject.project.metadata.projectTwitter as string
+        )
+      ).toBeInTheDocument();
+    });
+
+    it("shows created at date", async () => {
+      expect(
+        screen.getByText(
+          formatDateWithOrdinal(
+            new Date(expectedProject.project.metadata.createdAt as number)
+          ),
+          { exact: false }
+        )
+      ).toBeInTheDocument();
     });
 
     it("shows project user github", async () => {
-      expect(screen.getByTestId("user-github")).toBeInTheDocument();
+      expect(
+        screen.getByText(expectedProject.project.metadata.userGithub as string)
+      ).toBeInTheDocument();
     });
 
     it("shows project github", async () => {
-      expect(screen.getByTestId("project-github")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          expectedProject.project.metadata.projectGithub as string
+        )
+      ).toBeInTheDocument();
     });
-  });
 
-  it("shows project stats", async () => {
-    fetchMock.mockResponse(
-      JSON.stringify({
-        success: true,
-        message:
-          "/update/summary/project/1/0xdf75054cd67217aee44b4f9e4ebc651c00330938/0xd27E1a1a60eBc1B70f4Cae5265092C0f6eDc7F9d",
-        data: {
-          contributionCount: 546,
-          uniqueContributors: 528,
-          totalContributionsInUSD: 400,
-          averageUSDContribution: 0.7,
-          updatedAt: "2022-12-22T14:41:36.002Z",
-        },
-      })
-    );
-    const expectedProject = makeApprovedProjectData({ grantApplicationId });
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
+    it("displays the bread crumbs", async () => {
+      expect(await screen.findByTestId("bread-crumbs")).toBeInTheDocument();
     });
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
-    /* Initially shows - when loading */
-    expect(screen.getByText("$-")).toBeInTheDocument();
-    /* Then when the data resolves, displays that */
-    const contributorsCount = await screen.findByText("528");
-    expect(contributorsCount).toBeInTheDocument();
   });
 
   it("shows project description", async () => {
-    const expectedProject = makeApprovedProjectData({ grantApplicationId });
-    const expectedProjectDescription =
-      expectedProject.projectMetadata.description;
-
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
     });
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
 
     expect(
-      await screen.findByText(expectedProjectDescription)
+      await screen.findByText(expectedProject.project.metadata.description)
     ).toBeInTheDocument();
   });
 
   it("shows project banner", async () => {
-    const expectedProjectBannerImg = "bannersrc";
-    const expectedProject = makeApprovedProjectData(
-      { grantApplicationId },
-      { bannerImg: expectedProjectBannerImg }
-    );
-
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
     });
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
 
     const bannerImg = screen.getByRole("img", {
       name: /project banner/i,
     }) as HTMLImageElement;
 
-    expect(bannerImg.src).toContain(expectedProjectBannerImg);
+    expect(bannerImg.src).toContain(expectedProject.project.metadata.bannerImg);
   });
 
   it("shows project logo", async () => {
-    const expectedProjectLogoImg = "logosrc";
-    const expectedProject = makeApprovedProjectData(
-      { grantApplicationId },
-      { logoImg: expectedProjectLogoImg }
-    );
-
-    const roundWithProjects = makeRoundData({
-      id: roundId,
-      approvedProjects: [expectedProject],
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
     });
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
 
     const logoImg = screen.getByRole("img", {
       name: /project logo/i,
     }) as HTMLImageElement;
 
-    expect(logoImg.src).toContain(expectedProjectLogoImg);
+    expect(logoImg.src).toContain(expectedProject.project.metadata.logoImg);
+  });
+
+  it("shows project application form answers", async () => {
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
+    });
+
+    expect(screen.getByText("Additional Information")).toBeInTheDocument();
+
+    expect(screen.getByText("never gonna give you up")).toBeInTheDocument();
+    expect(screen.getByText("never gonna let you down")).toBeInTheDocument();
+
+    expect(
+      screen.queryByText("this is a hidden question")
+    ).not.toBeInTheDocument();
+
+    expect(screen.getByText("array of strings")).toBeInTheDocument();
+    expect(screen.getByText("first option, second option")).toBeInTheDocument();
+  });
+
+  it("hides project application form answers when they're empty", async () => {
+    (useApplication as Mock).mockImplementation(() => ({
+      data: {
+        ...expectedProject,
+        metadata: {
+          application: {
+            answers: [],
+          },
+        },
+      },
+    }));
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
+    });
+
+    expect(
+      screen.queryByText("Additional Information")
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByText("this is a hidden question")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("this will not show up")).not.toBeInTheDocument();
   });
 });
 
-describe("voting ballot", () => {
-  const expectedProject = makeApprovedProjectData({ grantApplicationId });
-  const roundWithProjects = makeRoundData({
-    id: roundId,
-    approvedProjects: [expectedProject],
+describe("voting cart", () => {
+  beforeEach(() => {
+    (useApplication as Mock).mockReturnValue({
+      data: expectedProject,
+    });
+  });
+  it("shows an add-to-cart button", async () => {
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
+    });
+    screen.logTestingPlaygroundURL();
+
+    // mock screen size
+    setWindowDimensions(320, 480);
+
+    expect(renderComponentsBasedOnDeviceSize()).toBe("mobile");
+
+    // click add to cart
+    const addToCart = screen.getAllByTestId("add-to-cart");
+    fireEvent.click(addToCart[0]);
+
+    await act(async () => {
+      await waitFor(
+        () => {
+          expect(
+            screen.queryAllByTestId("remove-from-cart")[0]
+          ).toBeInTheDocument();
+          expect(screen.queryByTestId("add-to-cart")).not.toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+    });
+
+    const removeFromCart = screen.getAllByTestId("remove-from-cart");
+    fireEvent.click(removeFromCart[0]);
+
+    await act(async () => {
+      await waitFor(
+        () => {
+          expect(screen.queryAllByTestId("add-to-cart")[0]).toBeInTheDocument();
+          expect(
+            screen.queryByTestId("remove-from-cart")
+          ).not.toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+    });
   });
 
-  it("shows an add-to-shortlist button", () => {
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
-
-    expect(screen.getByTestId("add-to-shortlist")).toBeInTheDocument();
-  });
-
-  it("shows a remove-from-shortlist button replacing add-to-shortlist when add-to-shortlist is clicked", () => {
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
-    const addToBallot = screen.getByTestId("add-to-shortlist");
-    fireEvent.click(addToBallot);
+  it("shows a remove-from-cart button replacing add-to-cart when add-to-cart is clicked", () => {
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
+    });
+    const addToCart = screen.getAllByTestId("add-to-cart");
+    fireEvent.click(addToCart[0]);
     setTimeout(() => {
       // wait three seconds after the user clicks add before proceeding
-      expect(screen.getByTestId("remove-from-shortlist")).toBeInTheDocument();
-      expect(screen.queryByTestId("add-to-shortlist")).not.toBeInTheDocument();
+      expect(screen.getByTestId("remove-from-cart")).toBeInTheDocument();
+      expect(screen.queryByTestId("add-to-cart")).not.toBeInTheDocument();
     }, 3000);
   });
 
-  it("shows a add-to-shortlist button replacing a remove-from-shortlist button when remove-from-balled is clicked", () => {
-    renderWithContext(<ViewProjectDetails />, { rounds: [roundWithProjects] });
+  it("shows a add-to-cart button replacing a remove-from-cart button when remove-from-cart is clicked", async () => {
+    renderWithContext(<ViewProjectDetails />, {
+      roundState: {
+        rounds: [],
+        isLoading: false,
+      },
+      dataLayer: mockDataLayer,
+    });
 
-    // click add to ballot
-    const addToBallot = screen.getByTestId("add-to-shortlist");
-    fireEvent.click(addToBallot);
-    setTimeout(() => {
-      // wait three seconds after the user clicks add before proceeding
-      expect(screen.getByTestId("remove-from-shortlist")).toBeInTheDocument();
-      expect(screen.queryByTestId("add-to-shortlist")).not.toBeInTheDocument();
-      // click remove from ballot
-      const removeFromBallot = screen.getByTestId("remove-from-shortlist");
-      fireEvent.click(removeFromBallot);
-      expect(screen.getByTestId("add-to-shortlist")).toBeInTheDocument();
-      expect(
-        screen.queryByTestId("remove-from-shortlist")
-      ).not.toBeInTheDocument();
-    }, 3000);
+    const removeFromCart = screen.getAllByTestId("remove-from-cart");
+    fireEvent.click(removeFromCart[0]);
+
+    await waitFor(
+      () => {
+        expect(screen.queryAllByTestId("add-to-cart")[0]).toBeInTheDocument();
+        expect(
+          screen.queryByTestId("remove-from-cart")
+        ).not.toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 });

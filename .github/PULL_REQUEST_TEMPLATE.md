@@ -1,16 +1,20 @@
-<!-- 
-Thank you for your pull request! Please review the requirements below 
-and ensure your pull request has fulfilled all requirements outlined in the target package.
--->
+<!-- Thank you for your pull request! Before marking it as "Ready for review",
+please ensure that all items of checklist are satisfied and that CI checks are
+passing.  -->
 
-##### Description
+Fixes: #issue
+
+## Description
 
 <!-- Describe your changes here. -->
 
-##### Refers/Fixes
+## Checklist
 
-<!-- If this PR is related to a GitHub issue, please add a link here. -->
+This PR:
 
-##### Testing
-
-<!-- All PRs should be accompanied by tests! If you haven't added tests, please explain here. -->
+- [ ] Does it add new payout or donation token? In this case, have they been added to the indexer to avoid it to crash?
+- [ ] Includes only changes relevant to the original ticket. Significant refactoring needs to be separated.
+- [ ] Doesn't disable eslint rules.
+- [ ] Doesn't work around the type checker (including but not limited to: type casts, non-null assertions, `@ts-ignore`, unjustified optional values).
+- [ ] Doesn't contain commented out code.
+- [ ] If adding/updating a feature, it adds/updates its test script on Notion.

@@ -1,10 +1,19 @@
 const webpack = require("webpack");
 const SentryWebpackPlugin = require("@sentry/webpack-plugin");
+const CracoEsbuildPlugin = require("craco-esbuild");
+const path = require("path");
+const { VerifyEnvPlugin } = require("verify-env");
+const { config } = require("dotenv");
+
+config({
+  path: path.join(__dirname, "../../.env"),
+});
 
 const plugins = [
   new webpack.ProvidePlugin({
     Buffer: ["buffer", "Buffer"],
   }),
+  new VerifyEnvPlugin(),
 ];
 
 if (process.env.REACT_APP_ENV === "production") {
@@ -29,6 +38,7 @@ if (process.env.REACT_APP_ENV === "production") {
 module.exports = {
   webpack: {
     configure: {
+      devtool: "source-map", // Source map generation must be turned on
       module: {
         rules: [
           {
@@ -76,4 +86,20 @@ module.exports = {
       add: plugins,
     },
   },
+  plugins: [
+    {
+      plugin: CracoEsbuildPlugin,
+      options: {
+        includePaths: [path.join(__dirname, `../common/src`)],
+        skipEsbuildJest: true,
+        esbuildLoaderOptions: {
+          loader: "tsx", // Set the value to 'tsx' if you use typescript
+          target: "es2021",
+        },
+        esbuildMinimizerOptions: {
+          target: "es2021",
+        },
+      },
+    },
+  ],
 };

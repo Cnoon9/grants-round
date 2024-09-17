@@ -6,22 +6,18 @@ import React, {
   useContext,
   useState,
 } from "react";
-import {
-  updateApplicationList,
-  updateRoundContract,
-} from "../../features/api/application";
 import { datadogLogs } from "@datadog/browser-logs";
-import { waitForSubgraphSyncTo } from "../../features/api/subgraph";
-import { Signer } from "@ethersproject/abstract-signer";
-import { useWallet } from "../../features/common/Auth";
+import { Allo, RoundStrategyType } from "common";
+import { Address } from "viem";
+import { RoundCategory } from "data-layer";
 
 export interface BulkUpdateGrantApplicationState {
   roundId: string;
   setRoundId: React.Dispatch<SetStateAction<string>>;
   applications: GrantApplication[];
   setApplications: React.Dispatch<SetStateAction<GrantApplication[]>>;
-  IPFSCurrentStatus: ProgressStatus;
-  setIPFSCurrentStatus: React.Dispatch<SetStateAction<ProgressStatus>>;
+  selectedApplications: GrantApplication[];
+  setSelectedApplications: React.Dispatch<SetStateAction<GrantApplication[]>>;
   contractUpdatingStatus: ProgressStatus;
   setContractUpdatingStatus: React.Dispatch<SetStateAction<ProgressStatus>>;
   indexingStatus: ProgressStatus;
@@ -38,8 +34,8 @@ export const initialBulkUpdateGrantApplicationState: BulkUpdateGrantApplicationS
     setApplications: () => {
       /**/
     },
-    IPFSCurrentStatus: ProgressStatus.NOT_STARTED,
-    setIPFSCurrentStatus: () => {
+    selectedApplications: [],
+    setSelectedApplications: () => {
       /**/
     },
     contractUpdatingStatus: ProgressStatus.NOT_STARTED,
@@ -53,8 +49,13 @@ export const initialBulkUpdateGrantApplicationState: BulkUpdateGrantApplicationS
   };
 
 export type BulkUpdateGrantApplicationParams = {
+  context: BulkUpdateGrantApplicationState;
   roundId: string;
+  roundStrategy: RoundStrategyType;
+  roundStrategyAddress: string;
   applications: GrantApplication[];
+  selectedApplications: GrantApplication[];
+  allo: Allo;
 };
 
 export const BulkUpdateGrantApplicationContext =
@@ -73,8 +74,8 @@ export const BulkUpdateGrantApplicationProvider = ({
   const [applications, setApplications] = useState(
     initialBulkUpdateGrantApplicationState.applications
   );
-  const [IPFSCurrentStatus, setIPFSCurrentStatus] = useState(
-    initialBulkUpdateGrantApplicationState.IPFSCurrentStatus
+  const [selectedApplications, setSelectedApplications] = useState(
+    initialBulkUpdateGrantApplicationState.selectedApplications
   );
   const [contractUpdatingStatus, setContractUpdatingStatus] = useState(
     initialBulkUpdateGrantApplicationState.contractUpdatingStatus
@@ -89,8 +90,8 @@ export const BulkUpdateGrantApplicationProvider = ({
     setRoundId,
     applications,
     setApplications,
-    IPFSCurrentStatus,
-    setIPFSCurrentStatus,
+    selectedApplications,
+    setSelectedApplications,
     contractUpdatingStatus,
     setContractUpdatingStatus,
     indexingStatus,
@@ -104,20 +105,9 @@ export const BulkUpdateGrantApplicationProvider = ({
   );
 };
 
-interface bulkUpdateGrantApplicationParams {
-  signer: Signer;
-  context: BulkUpdateGrantApplicationState;
-  roundId: string;
-  applications: GrantApplication[];
-}
-
 function resetToInitialState(context: BulkUpdateGrantApplicationState) {
-  const { setIPFSCurrentStatus, setContractUpdatingStatus, setIndexingStatus } =
-    context;
+  const { setContractUpdatingStatus, setIndexingStatus } = context;
 
-  setIPFSCurrentStatus(
-    initialBulkUpdateGrantApplicationState.IPFSCurrentStatus
-  );
   setContractUpdatingStatus(
     initialBulkUpdateGrantApplicationState.contractUpdatingStatus
   );
@@ -125,28 +115,58 @@ function resetToInitialState(context: BulkUpdateGrantApplicationState) {
 }
 
 async function _bulkUpdateGrantApplication({
-  signer,
   context,
   roundId,
+  roundStrategy,
+  roundStrategyAddress,
   applications,
-}: bulkUpdateGrantApplicationParams) {
+  selectedApplications,
+  allo,
+}: BulkUpdateGrantApplicationParams) {
   resetToInitialState(context);
-
   try {
-    const newProjectsMetaPtr = await storeDocument({
-      signer,
-      roundId,
-      applications,
-      context,
-    });
-    const transactionBlockNumber = await updateContract({
-      signer,
-      roundId,
-      newProjectsMetaPtr,
-      context,
-    });
+    context.setContractUpdatingStatus(ProgressStatus.IN_PROGRESS);
 
-    await waitForSubgraphToUpdate(signer, transactionBlockNumber, context);
+    const strategy =
+      roundStrategy == "DirectGrants"
+        ? RoundCategory.Direct
+        : RoundCategory.QuadraticFunding;
+
+    const result = await allo
+      .bulkUpdateApplicationStatus({
+        roundId,
+        applicationsToUpdate: selectedApplications.map((a) => ({
+          index: a.applicationIndex,
+          status: a.status,
+        })),
+        currentApplications: applications.map((a) => ({
+          index: a.applicationIndex,
+          status: a.status,
+        })),
+        // FIXME: use getAddress when tests stop failing because of it
+        strategyAddress: roundStrategyAddress as Address,
+        strategy: strategy,
+      })
+      .on("transactionStatus", (tx) => {
+        if (tx.type === "success") {
+          context.setContractUpdatingStatus(ProgressStatus.IS_SUCCESS);
+          context.setIndexingStatus(ProgressStatus.IN_PROGRESS);
+        } else {
+          context.setContractUpdatingStatus(ProgressStatus.IS_ERROR);
+        }
+      })
+      .on("indexingStatus", (tx) => {
+        if (tx.type === "success") {
+          context.setIndexingStatus(ProgressStatus.IS_SUCCESS);
+        } else {
+          context.setIndexingStatus(ProgressStatus.IS_ERROR);
+        }
+      })
+      .execute();
+
+    if (result.type === "error") {
+      console.error("failed to update application status", result.error);
+    }
   } catch (error) {
     datadogLogs.logger.error(`error: _bulkUpdateGrantApplication - ${error}`);
     console.error("_bulkUpdateGrantApplication: ", error);
@@ -163,121 +183,18 @@ export const useBulkUpdateGrantApplications = () => {
     );
   }
 
-  const { signer } = useWallet();
-
   const handleBulkUpdateGrantApplications = async (
-    params: BulkUpdateGrantApplicationParams
+    params: Omit<BulkUpdateGrantApplicationParams, "context">
   ) => {
     return _bulkUpdateGrantApplication({
       ...params,
-      signer: signer as Signer,
       context,
     });
   };
 
   return {
     bulkUpdateGrantApplications: handleBulkUpdateGrantApplications,
-    IPFSCurrentStatus: context.IPFSCurrentStatus,
     contractUpdatingStatus: context.contractUpdatingStatus,
     indexingStatus: context.indexingStatus,
   };
 };
-
-interface StoreDocumentParams {
-  signer: Signer;
-  roundId: string;
-  applications: GrantApplication[];
-  context: BulkUpdateGrantApplicationState;
-}
-
-const storeDocument = async ({
-  signer,
-  roundId,
-  applications,
-  context,
-}: StoreDocumentParams): Promise<string> => {
-  const { setIPFSCurrentStatus } = context;
-  try {
-    setIPFSCurrentStatus(ProgressStatus.IN_PROGRESS);
-
-    const chainId = await signer.getChainId();
-    const ipfsHash = await updateApplicationList(
-      applications,
-      roundId,
-      chainId
-    );
-
-    setIPFSCurrentStatus(ProgressStatus.IS_SUCCESS);
-
-    return ipfsHash;
-  } catch (error) {
-    datadogLogs.logger.error(`error: storeDocument - ${error}`);
-    console.error("storeDocument", error);
-    setIPFSCurrentStatus(ProgressStatus.IS_ERROR);
-    throw error;
-  }
-};
-
-interface UpdateContractParams {
-  signer: Signer;
-  roundId: string;
-  newProjectsMetaPtr: string;
-  context: BulkUpdateGrantApplicationState;
-}
-
-const updateContract = async ({
-  signer,
-  roundId,
-  newProjectsMetaPtr,
-  context,
-}: UpdateContractParams): Promise<number> => {
-  const { setContractUpdatingStatus } = context;
-
-  try {
-    setContractUpdatingStatus(ProgressStatus.IN_PROGRESS);
-
-    const { transactionBlockNumber } = await updateRoundContract(
-      roundId,
-      signer,
-      newProjectsMetaPtr
-    );
-
-    setContractUpdatingStatus(ProgressStatus.IS_SUCCESS);
-
-    return transactionBlockNumber;
-  } catch (error) {
-    datadogLogs.logger.error(`error: updateContract - ${error}`);
-    console.error(`updateContract roundId: ${roundId}`, error);
-    setContractUpdatingStatus(ProgressStatus.IS_ERROR);
-    throw error;
-  }
-};
-
-async function waitForSubgraphToUpdate(
-  signerOrProvider: Signer,
-  transactionBlockNumber: number,
-  context: BulkUpdateGrantApplicationState
-) {
-  const { setIndexingStatus } = context;
-
-  try {
-    datadogLogs.logger.error(
-      `waitForSubgraphToUpdate: txnBlockNumber - ${transactionBlockNumber}`
-    );
-
-    setIndexingStatus(ProgressStatus.IN_PROGRESS);
-
-    const chainId = await signerOrProvider.getChainId();
-
-    await waitForSubgraphSyncTo(chainId, transactionBlockNumber);
-
-    setIndexingStatus(ProgressStatus.IS_SUCCESS);
-  } catch (error) {
-    datadogLogs.logger.error(
-      `error: waitForSubgraphToUpdate - ${error}. Data - ${transactionBlockNumber}`
-    );
-    console.error("waitForSubgraphToUpdate", error);
-    setIndexingStatus(ProgressStatus.IS_ERROR);
-    throw error;
-  }
-}

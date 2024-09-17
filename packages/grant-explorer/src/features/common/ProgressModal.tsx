@@ -3,21 +3,6 @@ import { Dialog, Transition } from "@headlessui/react";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import { ProgressStatus } from "../api/types";
 
-export type Step = {
-  name: string;
-  description: string;
-  status: ProgressStatus;
-};
-
-interface ProgressModalProps {
-  isOpen: boolean;
-  steps: Step[];
-  heading?: string;
-  subheading?: string;
-  redirectUrl?: string;
-  children?: ReactNode;
-}
-
 export default function ProgressModal({
   isOpen,
   heading = "Processing...",
@@ -80,6 +65,7 @@ export default function ProgressModal({
                         className={`relative ${
                           stepIdx !== props.steps.length - 1 && "pb-10"
                         }`}
+                        data-testid={`${step.name}-${step.status}`}
                       >
                         {step.status === ProgressStatus.IS_SUCCESS ? (
                           <ModalStep
@@ -221,3 +207,20 @@ function ModalStep(props: {
     </>
   );
 }
+
+export type Step = {
+  name: string;
+  description: string;
+  status: ProgressStatus;
+};
+
+export interface ProgressModalProps {
+  isOpen: boolean;
+  steps: Step[];
+  heading?: string;
+  subheading?: string;
+  redirectUrl?: string;
+  children?: ReactNode;
+}
+
+export const errorModalDelayMs = 3000;

@@ -1,29 +1,74 @@
-import { Shortlist } from "../Navbar";
+import { faker } from "@faker-js/faker";
 import { screen } from "@testing-library/react";
-import { renderWithContext } from "../../../test-utils";
-import CustomerSupport from "../CustomerSupport";
+import {
+  mockBalance,
+  mockNetwork,
+  mockSigner,
+  renderWithContext,
+} from "../../../test-utils";
+import Navbar from "../Navbar";
+import type wagmi from "wagmi";
+import type rrd from "react-router-dom";
+const userAddress = faker.finance.ethereumAddress();
 
-describe("<Shortlist/>", () => {
-  it("should not display a number when empty", () => {
-    renderWithContext(<Shortlist count={0} roundUrlPath={""} />);
+const mockAccount = {
+  address: userAddress,
+  isConnected: false,
+};
 
-    /* Verify we are displaying the 0 */
-    expect(screen.queryByText("0")).not.toBeInTheDocument();
-  });
-
-  it("should display the number when full", () => {
-    renderWithContext(<Shortlist count={10} roundUrlPath={""} />);
-
-    /* Verify we aren't displaying the 0 */
-    expect(screen.getByText("10")).toBeInTheDocument();
-  });
+vi.mock("wagmi", async () => {
+  const actual = await vi.importActual<typeof wagmi>("wagmi");
+  return {
+    ...actual,
+    useAccount: () => mockAccount,
+    useBalance: () => mockBalance,
+    useSigner: () => mockSigner,
+    useNetwork: () => mockNetwork,
+  };
 });
 
-describe("Support", () => {
-  it("should display support options", () => {
-    renderWithContext(<CustomerSupport />);
+vi.mock("@rainbow-me/rainbowkit", () => ({
+  ConnectButton: vi.fn(),
+}));
 
-    /* Verify we have customer support options in the document */
-    expect(screen.getByTestId("customer-support")).toBeInTheDocument();
+vi.mock("../Auth");
+
+vi.mock("../PassportWidget", () => ({
+  PassportWidget: vi.fn(),
+}));
+
+const navigateMock = vi.fn();
+
+vi.mock("react-router-dom", async () => {
+  const chainId = 5;
+  const roundId = faker.finance.ethereumAddress();
+
+  const useParamsFn = () => ({
+    chainId,
+    roundId,
+  });
+
+  const actual = await vi.importActual<typeof rrd>("react-router-dom");
+  return {
+    ...actual,
+    useParams: useParamsFn,
+    useNavigate: () => navigateMock,
+  };
+});
+
+describe("<Navbar>", () => {
+  it("SHOULD display home-link", () => {
+    renderWithContext(<Navbar customBackground="" />);
+    expect(screen.getByTestId("home-link")).toBeInTheDocument();
+  });
+
+  it("SHOULD display connect wallet button", () => {
+    renderWithContext(<Navbar customBackground="" />);
+    expect(screen.getByTestId("connect-wallet-button")).toBeInTheDocument();
+  });
+
+  it("SHOULD display cart if round has not ended", () => {
+    renderWithContext(<Navbar customBackground="" />);
+    expect(screen.getByTestId("navbar-cart")).toBeInTheDocument();
   });
 });

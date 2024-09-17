@@ -1,129 +1,195 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useWallet } from "../common/Auth";
-import Navbar from "../common/Navbar";
+import { datadogLogs } from "@datadog/browser-logs";
+import { Tab } from "@headlessui/react";
 import {
+  AdjustmentsIcon,
+  ArrowCircleRightIcon,
   CalendarIcon,
+  ChartBarIcon,
   ChevronRightIcon,
   ClockIcon,
-  InboxIcon,
-  ChartBarIcon,
   DocumentReportIcon,
+  DocumentTextIcon,
+  InboxIcon,
+  UserGroupIcon,
+  UserAddIcon,
 } from "@heroicons/react/solid";
-import { Tab } from "@headlessui/react";
-import ApplicationsReceived from "./ApplicationsReceived";
-import ApplicationsApproved from "./ApplicationsApproved";
-import ApplicationsRejected from "./ApplicationsRejected";
-import Footer from "../common/Footer";
-import tw from "tailwind-styled-components";
-import { datadogLogs } from "@datadog/browser-logs";
-import NotFoundPage from "../common/NotFoundPage";
+import { Link, useParams } from "react-router-dom";
+import { useRoundById } from "../../context/round/RoundContext";
+import { useDebugMode } from "../../hooks";
+import { ProgressStatus, Round } from "../api/types";
 import AccessDenied from "../common/AccessDenied";
 import CopyToClipboardButton from "../common/CopyToClipboardButton";
-import { useRoundById } from "../../context/round/RoundContext";
-import { Spinner } from "../common/Spinner";
-import { useApplicationByRoundId } from "../../context/application/ApplicationContext";
+import Footer from "common/src/components/Footer";
+import Navbar from "../common/Navbar";
+import NotFoundPage from "../common/NotFoundPage";
 import {
-  ApplicationStatus,
-  GrantApplication,
-  ProgressStatus,
-  Round,
-} from "../api/types";
-import { Button } from "../common/styles";
-import { ReactComponent as GrantExplorerLogo } from "../../assets/grantexplorer-icon.svg";
-import ViewFundingAdmin from "./ViewFundingAdmin";
+  getPayoutRoundDescription,
+  prettyDates2,
+  verticalTabStyles,
+} from "../common/Utils";
+import FundContract from "./FundContract";
+import ReclaimFunds from "./ReclaimFunds";
+import ViewFundGrantees from "./ViewFundGrantees";
+import ViewRoundResults from "./ViewRoundResults/ViewRoundResults";
+import ViewRoundSettings from "./ViewRoundSettings";
 import ViewRoundStats from "./ViewRoundStats";
-import { getUTCDate, getUTCTime } from "../api/utils";
+import { RoundDates, parseRoundDates } from "../common/parseRoundDates";
+import moment from "moment";
+import { getChainById, getRoundStrategyType, stringToBlobUrl } from "common";
+import { useApplicationsByRoundId } from "../common/useApplicationsByRoundId";
+import AlloV1 from "common/src/icons/AlloV1";
+import ViewManageTeam from "./ViewManageTeam";
+import GrantApplications from "./GrantApplications";
+import { ViewGrantsExplorerButton } from "../common/ViewGrantsExplorerButton";
+import { useEffect } from "react";
+import { useAccount, useSwitchChain } from "wagmi";
+
+const builderLink = process.env.REACT_APP_BUILDER_URL;
+
+export const isDirectRound = (round: Round | undefined) => {
+  return (
+    round?.payoutStrategy?.strategyName &&
+    getRoundStrategyType(round.payoutStrategy.strategyName).includes(
+      "DirectGrants"
+    )
+  );
+};
 
 export default function ViewRoundPage() {
   datadogLogs.logger.info("====> Route: /round/:id");
   datadogLogs.logger.info(`====> URL: ${window.location.href}`);
-  const { id } = useParams();
-  const { address, chain } = useWallet();
+  const { switchChain } = useSwitchChain();
 
-  const { round, fetchRoundStatus, error } = useRoundById(id);
-  const isRoundsFetched =
+  const { chainId, id } = useParams() as { chainId?: string; id: string };
+  const { address, chain, connector } = useAccount();
+
+  const roundChainId = chainId ? Number(chainId) : chain?.id;
+  const { round, fetchRoundStatus, error } = useRoundById(
+    roundChainId as number,
+    id.toLowerCase()
+  );
+
+  console.log("round", round);
+
+  const isRoundFetched =
     fetchRoundStatus == ProgressStatus.IS_SUCCESS && !error;
-
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const { applications } = useApplicationByRoundId(id!);
-
-  const [roundExists, setRoundExists] = useState(true);
-  const [hasAccess, setHasAccess] = useState(true);
-
-  const tabStyles = (selected: boolean) =>
-    selected
-      ? "whitespace-nowrap py-4 px-1 text-sm outline-none"
-      : "text-grey-400 hover:text-gray-700 whitespace-nowrap py-4 px-1 font-medium text-sm";
+  const { data: applications } = useApplicationsByRoundId(id);
+  const roundStrategyType = round?.payoutStrategy?.strategyName
+    ? getRoundStrategyType(round?.payoutStrategy?.strategyName)
+    : null;
+  const debugModeEnabled = useDebugMode();
+  const hasAccess =
+    debugModeEnabled ||
+    (round
+      ? round?.roles?.some(
+          (role: { address: string }) =>
+            role.address.toLowerCase() === address?.toLowerCase()
+        )
+      : true);
+  const roundNotFound = fetchRoundStatus === ProgressStatus.IS_ERROR;
 
   useEffect(() => {
-    if (isRoundsFetched) {
-      setRoundExists(!!round);
-
-      if (round) {
-        round.operatorWallets?.includes(address?.toLowerCase())
-          ? setHasAccess(true)
-          : setHasAccess(false);
-      } else {
-        setHasAccess(true);
-      }
+    if (roundChainId !== chain?.id) {
+      switchChain({ connector, chainId: roundChainId as number });
     }
-  }, [isRoundsFetched, round, address]);
+  }, [chain?.id, roundChainId, connector, switchChain]);
+
+  const strategyName = round?.payoutStrategy.strategyName;
+  console.log("strategyName", strategyName);
+  const badgeColor =
+    strategyName === "MERKLE" ? "gradient-border-qf" : "gradient-border-direct";
 
   return (
     <>
-      {!roundExists && <NotFoundPage />}
+      {roundNotFound && <NotFoundPage />}
       {!hasAccess && <AccessDenied />}
-      {roundExists && hasAccess && (
+      {round && hasAccess && (
         <>
           <Navbar />
-          <div className="flex flex-col w-screen mx-0">
-            <header className="border-b bg-grey-150 px-3 md:px-20 py-6">
-              <div className="text-grey-400 font-semibold text-sm flex flex-row items-center gap-3">
-                <Link to={`/`}>
-                  <span>{"My Programs"}</span>
-                </Link>
-                <ChevronRightIcon className="h-6 w-6" />
-                <Link to={`/program/${round?.ownedBy}`}>
-                  <span>{"Program Details"}</span>
-                </Link>
-                <ChevronRightIcon className="h-6 w-6" />
-                <Link to={`/round/${id}`}>
-                  <span>{"Round Details"}</span>
-                </Link>
-              </div>
-              <div className="flex flex-row mb-4 mt-4 items-center">
-                <RoundName round={round} />
-              </div>
-
-              <div className="flex flex-row flex-wrap relative">
-                <ApplicationOpenDateRange
-                  startTime={round?.applicationsStartTime}
-                  endTime={round?.applicationsEndTime}
-                />
-                <RoundOpenDateRange
-                  startTime={round?.roundStartTime}
-                  endTime={round?.roundEndTime}
-                />
-                <div className="ml-32 absolute left-3/4">
-                  <ViewGrantsExplorerButton
-                    iconStyle="h-4 w-4 mr-2"
-                    chainId={`${chain.id}`}
-                    roundId={id}
+          <div className="flex flex-col items-center bg-gray-50">
+            <header className="w-full bg-grey-50">
+              <div className="w-full max-w-screen-2xl mx-auto px-8 py-6">
+                {/* Breadcrumb */}
+                <div className="text-grey-400 font-semibold text-sm flex flex-row items-center gap-3">
+                  <Link to={`/`}>
+                    <span>{"My Programs"}</span>
+                  </Link>
+                  <ChevronRightIcon className="h-6 w-6" />
+                  <Link
+                    to={`/chain/${roundChainId}/program/${round.roundMetadata.programContractAddress}`}
+                  >
+                    <span>{"Program Details"}</span>
+                  </Link>
+                  <ChevronRightIcon className="h-6 w-6" />
+                  <Link to={`/round/${id}`}>
+                    <span>{"Round Details"}</span>
+                  </Link>
+                  <RoundBadgeStatus round={round} />
+                </div>
+                {/* Round type badge */}
+                {getPayoutRoundDescription(
+                  round.payoutStrategy.strategyName || ""
+                ) && (
+                  <div
+                    className={`text-sm text-grey-900 h-[20px] inline-flex flex-col justify-center ${badgeColor} px-3 my-2`}
+                  >
+                    {getPayoutRoundDescription(
+                      round.payoutStrategy.strategyName || ""
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-row items-center">
+                  {/* Chain icon (allo v1 badge if v1) & Round name */}
+                  <img
+                    src={stringToBlobUrl(
+                      getChainById(roundChainId as number).icon
+                    )}
+                    alt="Chain"
+                    className="rounded-full w-6 h-6 mr-2 mt-2"
                   />
+                  <RoundName round={round} />
+                  {round?.tags?.includes("allo-v1") && (
+                    <AlloV1 className="mt-2 ml-2" color="black" />
+                  )}
+                </div>
+                {/* Round open date range & buttons */}
+                <div className="flex flex-row items-center justify-between mt-4">
+                  <div className="flex flex-row justify-start">
+                    <RoundOpenDateRange round={round} />
+                  </div>
+                  <div className="flex flex-row justify-end">
+                    <div className="mr-4">
+                      <CopyToClipboardButton
+                        textToCopy={`${builderLink}/#/chains/${round.chainId}/rounds/${round.id}`}
+                        styles="text-xs font-mono p-2"
+                        iconStyle="h-4 w-4 mr-2"
+                      />
+                    </div>
+                    <div className="">
+                      <ViewGrantsExplorerButton
+                        iconStyle="h-4 w-4"
+                        chainId={`${chain?.id}`}
+                        roundId={round.id}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </header>
-
-            <main className="px-3 md:px-20 pt-6">
+            {/* Main content & tab */}
+            <main className="w-full max-w-screen-2xl mx-auto px-8 py-6">
               <Tab.Group vertical>
-                <div className="flex flex-row">
-                  <div className="w-24 basis-1/6 border-r">
+                <div className="flex font-semibold">
+                  <div className="border-r border-r-grey-100 md:pr-12">
                     <Tab.List
-                      className="flex flex-col h-max"
+                      className="flex flex-col h-max mr-20"
                       data-testid="side-nav-bar"
                     >
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -142,7 +208,36 @@ export default function ViewRoundPage() {
                           </div>
                         )}
                       </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
+                      {!isDirectRound(round) && (
+                        <Tab
+                          className={({ selected }) =>
+                            verticalTabStyles(selected)
+                          }
+                        >
+                          {({ selected }) => (
+                            <div
+                              className={
+                                selected
+                                  ? "text-black-500 flex flex-row"
+                                  : "flex flex-row"
+                              }
+                            >
+                              <DocumentTextIcon className="h-6 w-6 mr-2" />
+                              <span
+                                className="mt-0.5"
+                                data-testid="fund-contract"
+                              >
+                                Fund Round
+                              </span>
+                            </div>
+                          )}
+                        </Tab>
+                      )}
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
                         {({ selected }) => (
                           <div
                             className={
@@ -151,275 +246,301 @@ export default function ViewRoundPage() {
                                 : "flex flex-row"
                             }
                           >
-                            <ChartBarIcon className="h-6 w-6 mr-2" />
-                            <span className="mt-0.5" data-testid="round-stats">
-                              Round Stats
-                            </span>
-                          </div>
-                        )}
-                      </Tab>
-                      <Tab className={({ selected }) => tabStyles(selected)}>
-                        {({ selected }) => (
-                          <div
-                            className={
-                              selected
-                                ? "text-black-500 flex flex-row"
-                                : "flex flex-row"
-                            }
-                          >
-                            <DocumentReportIcon className="h-6 w-6 mr-2" />
+                            <AdjustmentsIcon className="h-6 w-6 mr-2" />
                             <span
                               className="mt-0.5"
-                              data-testid="funding-admin"
+                              data-testid="round-settings"
                             >
-                              Funding Admin
+                              Round Settings
                             </span>
                           </div>
                         )}
                       </Tab>
+                      <Tab
+                        className={({ selected }) =>
+                          verticalTabStyles(selected)
+                        }
+                      >
+                        {({ selected }) => (
+                          <div
+                            className={
+                              selected
+                                ? "text-black-500 flex flex-row"
+                                : "flex flex-row"
+                            }
+                          >
+                            <UserAddIcon className="h-6 w-6 mr-2" />
+                            <span
+                              className="mt-0.5"
+                              data-testid="grant-applications"
+                            >
+                              Manage Team
+                            </span>
+                          </div>
+                        )}
+                      </Tab>
+                      {!isDirectRound(round) && (
+                        <Tab
+                          className={({ selected }) =>
+                            verticalTabStyles(selected)
+                          }
+                        >
+                          {({ selected }) => (
+                            <div
+                              className={
+                                selected
+                                  ? "text-black-500 flex flex-row"
+                                  : "flex flex-row"
+                              }
+                            >
+                              <ChartBarIcon className="h-6 w-6 mr-2" />
+                              <span
+                                className="mt-0.5"
+                                data-testid="round-stats"
+                              >
+                                Round Stats
+                              </span>
+                            </div>
+                          )}
+                        </Tab>
+                      )}
+                      {!isDirectRound(round) && (
+                        <>
+                          <Tab
+                            className={({ selected }) =>
+                              verticalTabStyles(selected)
+                            }
+                          >
+                            {({ selected }) => (
+                              <div
+                                className={
+                                  selected
+                                    ? "text-black-500 flex flex-row"
+                                    : "flex flex-row"
+                                }
+                              >
+                                <DocumentReportIcon className="h-6 w-6 mr-2" />
+                                <span
+                                  className="mt-0.5"
+                                  data-testid="round-results"
+                                >
+                                  Round Results
+                                </span>
+                              </div>
+                            )}
+                          </Tab>
+                          <Tab
+                            className={({ selected }) =>
+                              verticalTabStyles(selected)
+                            }
+                          >
+                            {({ selected }) => (
+                              <div
+                                className={
+                                  selected
+                                    ? "text-black-500 flex flex-row"
+                                    : "flex flex-row"
+                                }
+                              >
+                                <UserGroupIcon className="h-6 w-6 mr-2" />
+                                <span
+                                  className="mt-0.5"
+                                  data-testid="fund-grantees"
+                                >
+                                  Fund Grantees
+                                </span>
+                              </div>
+                            )}
+                          </Tab>
+                          <Tab
+                            className={({ selected }) =>
+                              verticalTabStyles(selected)
+                            }
+                          >
+                            {({ selected }) => (
+                              <div
+                                className={
+                                  selected
+                                    ? "text-black-500 flex flex-row"
+                                    : "flex flex-row"
+                                }
+                              >
+                                <ArrowCircleRightIcon className="h-6 w-6 mr-2" />
+                                <span
+                                  className="mt-0.5"
+                                  data-testid="reclaim-funds"
+                                >
+                                  Reclaim Funds
+                                </span>
+                              </div>
+                            )}
+                          </Tab>
+                        </>
+                      )}
                     </Tab.List>
                   </div>
-                  <Tab.Panels className="basis-5/6 ml-6">
+                  <Tab.Panels className="flex-grow ml-6">
                     <Tab.Panel>
                       <GrantApplications
+                        isDirectRound={roundStrategyType === "DirectGrants"}
                         applications={applications}
-                        isRoundsFetched={isRoundsFetched}
+                        isRoundsFetched={isRoundFetched}
                         fetchRoundStatus={fetchRoundStatus}
-                        chainId={`${chain.id}`}
+                        chainId={`${chain?.id}`}
                         roundId={id}
                       />
                     </Tab.Panel>
+                    {!isDirectRound(round) && (
+                      <Tab.Panel>
+                        <FundContract round={round} roundId={id} />
+                      </Tab.Panel>
+                    )}
                     <Tab.Panel>
-                      <ViewRoundStats
-                        roundStats=""
-                        isRoundStatsFetched={true}
+                      <ViewRoundSettings
+                        chainId={roundChainId as number}
+                        id={round?.id}
                       />
                     </Tab.Panel>
                     <Tab.Panel>
-                      <ViewFundingAdmin
+                      <ViewManageTeam
                         round={round}
-                        chainId={`${chain.id}`}
-                        roundId={id}
+                        userAddress={address?.toString() ?? "0x"}
                       />
                     </Tab.Panel>
+                    {!isDirectRound(round) && (
+                      <>
+                        <Tab.Panel>
+                          <ViewRoundStats />
+                        </Tab.Panel>
+                        <Tab.Panel>
+                          <ViewRoundResults />
+                        </Tab.Panel>
+                        <Tab.Panel>
+                          <ViewFundGrantees
+                            isRoundFinalized={
+                              round?.payoutStrategy?.isReadyForPayout ??
+                              undefined
+                            }
+                            round={round}
+                          />
+                        </Tab.Panel>
+                        <Tab.Panel>
+                          <ReclaimFunds
+                            round={round}
+                            chainId={`${chain?.id}`}
+                            roundId={id}
+                          />
+                        </Tab.Panel>
+                      </>
+                    )}
                   </Tab.Panels>
                 </div>
               </Tab.Group>
+              <div className="w-full">
+                <Footer />
+              </div>
             </main>
           </div>
-          <Footer />
         </>
       )}
     </>
   );
 }
 
-function GrantApplications(props: {
-  applications: GrantApplication[] | undefined;
-  isRoundsFetched: boolean;
-  fetchRoundStatus: ProgressStatus;
-  chainId: string;
-  roundId: string | undefined;
-}) {
-  const pendingApplications =
-    props.applications?.filter(
-      (a) => a.status === ApplicationStatus.PENDING.toString()
-    ) || [];
-  const approvedApplications =
-    props.applications?.filter(
-      (a) => a.status === ApplicationStatus.APPROVED.toString()
-    ) || [];
-  const rejectedApplications =
-    props.applications?.filter(
-      (a) => a.status === ApplicationStatus.REJECTED.toString()
-    ) || [];
-
-  const TabApplicationCounter = tw.div`
-  rounded-md
-  ml-2
-  w-8
-  h-5
-  float-right
-  font-sm
-  font-normal
-`;
-
-  const tabStyles = (selected: boolean) =>
-    selected
-      ? "border-violet-500 whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm outline-none"
-      : "border-transparent text-grey-400 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm";
-
+export function RoundName(props: { round?: Round }) {
   return (
-    <div>
-      {props.isRoundsFetched && (
-        <div>
-          <div>
-            <Tab.Group>
-              <div className="justify-end grow relative">
-                <Tab.List className="border-b mb-6 flex items-center justify-between">
-                  <div className="space-x-8">
-                    <Tab className={({ selected }) => tabStyles(selected)}>
-                      {({ selected }) => (
-                        <div className={selected ? "text-violet-500" : ""}>
-                          Received
-                          <TabApplicationCounter
-                            className={
-                              selected ? "bg-violet-100" : "bg-grey-150"
-                            }
-                            data-testid="received-application-counter"
-                          >
-                            {pendingApplications?.length || 0}
-                          </TabApplicationCounter>
-                        </div>
-                      )}
-                    </Tab>
-                    <Tab className={({ selected }) => tabStyles(selected)}>
-                      {({ selected }) => (
-                        <div className={selected ? "text-violet-500" : ""}>
-                          Approved
-                          <TabApplicationCounter
-                            className={
-                              selected ? "bg-violet-100" : "bg-grey-150"
-                            }
-                            data-testid="approved-application-counter"
-                          >
-                            {approvedApplications?.length || 0}
-                          </TabApplicationCounter>
-                        </div>
-                      )}
-                    </Tab>
-                    <Tab className={({ selected }) => tabStyles(selected)}>
-                      {({ selected }) => (
-                        <div className={selected ? "text-violet-500" : ""}>
-                          Rejected
-                          <TabApplicationCounter
-                            className={
-                              selected ? "bg-violet-100" : "bg-grey-150"
-                            }
-                            data-testid="rejected-application-counter"
-                          >
-                            {rejectedApplications?.length || 0}
-                          </TabApplicationCounter>
-                        </div>
-                      )}
-                    </Tab>
-                  </div>
-                </Tab.List>
-                <div className="text-right absolute ml-24 bottom-4 left-3/4">
-                  <CopyToClipboardButton
-                    textToCopy={`https://grantshub.gitcoin.co/#/chains/${props.chainId}/rounds/${props.roundId}`}
-                    styles="text-xs p-2"
-                    iconStyle="h-4 w-4 mr-1"
-                  />
-                </div>
-              </div>
-              <Tab.Panels>
-                <Tab.Panel>
-                  <ApplicationsReceived />
-                </Tab.Panel>
-                <Tab.Panel>
-                  <ApplicationsApproved />
-                </Tab.Panel>
-                <Tab.Panel>
-                  <ApplicationsRejected />
-                </Tab.Panel>
-              </Tab.Panels>
-            </Tab.Group>
-          </div>
-        </div>
-      )}
-
-      <div className="grid md:grid-cols-4 sm:grid-cols-1 gap-4 mb-8">
-        {props.fetchRoundStatus == ProgressStatus.IN_PROGRESS && (
-          <Spinner text="We're fetching your Round." />
-        )}
-      </div>
-    </div>
-  );
-}
-
-type ViewGrantsExplorerButtonType = {
-  styles?: string;
-  iconStyle?: string;
-  chainId: string;
-  roundId: string | undefined;
-};
-
-function RoundName(props: { round?: Round }) {
-  return (
-    <h1 className="text-3xl sm:text-[32px] my-2">
+    <h1 className="text-3xl sm:text-[32px] my-1 -mb-2">
       {props.round?.roundMetadata?.name || "Round Details"}
     </h1>
   );
 }
 
-export function ViewGrantsExplorerButton(props: ViewGrantsExplorerButtonType) {
-  const { chainId, roundId } = props;
+export function ApplicationOpenDateRange({ round }: { round: RoundDates }) {
+  const res = parseRoundDates(round);
 
   return (
-    <Button
-      type="button"
-      className={`inline-flex items-center bg-white text-xs border border-grey-100 text-grey-500 py-1.5 px-2.5 w-48 h-7 drop-shadow-sm justify-center ${props.styles}`}
-      onClick={() => {
-        redirectToGrantExplorer(chainId, roundId);
-      }}
-      data-testid="round-explorer"
-    >
-      <GrantExplorerLogo className={props.iconStyle} aria-hidden="true" />
-      View on Grants Explorer
-    </Button>
-  );
-}
-
-function redirectToGrantExplorer(chainId: string, roundId: string | undefined) {
-  const url = `${process.env.REACT_APP_GRANT_EXPLORER}/#/round/${chainId}/${roundId}`;
-  setTimeout(() => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, 1000);
-}
-
-function ApplicationOpenDateRange(props: { startTime?: Date; endTime?: Date }) {
-  const { startTime, endTime } = props;
-
-  return (
-    <div className="flex mr-8 lg:mr-36">
-      <CalendarIcon className="h-5 w-5 mr-2 text-grey-400" />
-      <p className="text-sm mr-2 text-grey-400">Applications:</p>
-      <div>
-        <p className="text-sm">
-          <span>{(startTime && getUTCDate(startTime)) || "..."}</span>
-          <span className="mx-2">-</span>
-          <span>{(endTime && getUTCDate(endTime)) || "..."}</span>
+    <div className="flex gap-2 text-sm">
+      <CalendarIcon className="h-5 w-5 text-grey-400" />
+      <span className="text-grey-400 mr-2">Applications:</span>
+      <div className="flex flex-row gap-2">
+        <p className="flex flex-col">
+          <span>{res.application.local_iso.start}</span>
+          <span className="text-grey-400 text-xs">
+            ({res.application.local.start})
+          </span>
         </p>
-        <p className="flex justify-center items-center text-sm text-grey-400">
-          <span>({(startTime && getUTCTime(startTime)) || "..."})</span>
-          <span className="mx-2">-</span>
-          <span>({(endTime && getUTCTime(endTime)) || "..."})</span>
+        <p className="flex flex-col">
+          <span className="mx-1">-</span>
+        </p>
+        <p className="flex flex-col">
+          <span className="[&>*]:flex [&>*]:flex-col">
+            {res.application.local_iso.end}
+          </span>
+          {res.application.local.end && (
+            <span className="text-grey-400 text-xs">
+              {res.application.local.end}
+            </span>
+          )}
         </p>
       </div>
     </div>
   );
 }
 
-function RoundOpenDateRange(props: { startTime?: Date; endTime?: Date }) {
-  const { startTime, endTime } = props;
+export function RoundOpenDateRange({ round }: { round: RoundDates }) {
+  const dates = prettyDates2(round.roundStartTime, round.roundEndTime);
 
   return (
-    <div className="flex">
-      <ClockIcon className="h-5 w-5 mr-2 text-grey-400" />
-      <p className="text-sm mr-2 text-grey-400">Round:</p>
-      <div>
-        <p className="flex justify-center items-center text-sm">
-          <span>{(startTime && getUTCDate(startTime)) || "..."}</span>
-          <span className="mx-2">-</span>
-          <span>{(endTime && getUTCDate(endTime)) || "..."}</span>
-        </p>
-        <p className="flex justify-center items-center text-sm text-grey-400">
-          <span>({(startTime && getUTCTime(startTime)) || "..."})</span>
-          <span className="mx-2">-</span>
-          <span>({(endTime && getUTCTime(endTime)) || "..."})</span>
-        </p>
-      </div>
+    <div className="flex flex-row text-sm text-grey-400">
+      <ClockIcon className="h-5 w-5 text-grey-500" />
+      <span className="mx-2">Round:</span>
+      <span className="text-grey-500">{dates.start.date}</span>
+      <span className="mx-1">
+        {dates.start.time} {dates.start.timezone}
+      </span>
+      {" - "}
+      {dates.end && (
+        <>
+          <span className="text-grey-500 ml-1">
+            {dates.end.date ?? dates.end}
+          </span>
+          <span className="mx-1">
+            {dates.end.time ?? ""} {dates.end.timezone ?? ""}
+          </span>
+        </>
+      )}
     </div>
   );
+}
+
+export function RoundBadgeStatus({ round }: { round: Round }) {
+  const roundEnds = round.roundEndTime;
+  const now = moment();
+
+  const roundStrategyType = round?.payoutStrategy?.strategyName
+    ? getRoundStrategyType(round.payoutStrategy?.strategyName)
+    : null;
+
+  if (
+    (roundStrategyType === "QuadraticFunding" &&
+      now.isBetween(
+        round.applicationsStartTime,
+        round.applicationsEndTime || now
+      )) ||
+    (roundStrategyType === "DirectGrants" && now.isBetween(roundEnds, now))
+  ) {
+    return (
+      <div
+        style={{
+          borderRadius: "24px",
+          lineHeight: "1.2",
+        }}
+        className={`text-sm h-[24px] inline-flex flex-col justify-center px-4 mt-2 ml-auto bg-blue-100 text-black font-normal`}
+      >
+        Applications in progress
+      </div>
+    );
+  }
+
+  return null;
 }

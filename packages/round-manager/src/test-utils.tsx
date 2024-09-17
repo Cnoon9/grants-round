@@ -1,25 +1,19 @@
 import { faker } from "@faker-js/faker";
-import { ReduxRouter } from "@lagunovsky/redux-react-router";
 import { render } from "@testing-library/react";
 import { randomInt } from "crypto";
+import { BigNumber, ethers } from "ethers";
+import { formatBytes32String, parseEther } from "ethers/lib/utils";
 import React from "react";
-import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
-import { store } from "./app/store";
-import {
-  ApplicationContext,
-  ApplicationState,
-  initialApplicationState,
-} from "./context/application/ApplicationContext";
 import {
   BulkUpdateGrantApplicationContext,
   BulkUpdateGrantApplicationState,
   initialBulkUpdateGrantApplicationState,
 } from "./context/application/BulkUpdateGrantApplicationContext";
 import {
-  initialReadProgramState,
   ReadProgramContext,
   ReadProgramState,
+  initialReadProgramState,
 } from "./context/program/ReadProgramContext";
 import {
   FinalizeRoundContext,
@@ -27,16 +21,14 @@ import {
   initialFinalizeRoundState,
 } from "./context/round/FinalizeRoundContext";
 import {
-  initialRoundState,
   RoundContext,
   RoundState,
+  initialRoundState,
 } from "./context/round/RoundContext";
-import { QFDistribution } from "./features/api/api";
 import {
   ApplicationStatus,
   ApprovedProject,
   GrantApplication,
-  MatchingStatsData,
   Program,
   ProjectCredentials,
   ProjectMetadata,
@@ -44,19 +36,30 @@ import {
   Round,
 } from "./features/api/types";
 import { IAM_SERVER } from "./features/round/ViewApplicationPage";
-import history from "./history";
+import moment from "moment";
+import {
+  ROUND_PAYOUT_DIRECT_OLD as ROUND_PAYOUT_DIRECT,
+  ROUND_PAYOUT_MERKLE_OLD as ROUND_PAYOUT_MERKLE,
+} from "common";
+import { zeroAddress } from "viem";
+import { DistributionMatch } from "data-layer";
+
+export const mockedOperatorWallet = faker.finance.ethereumAddress();
 
 export const makeProgramData = (overrides: Partial<Program> = {}): Program => ({
   id: faker.finance.ethereumAddress(),
   metadata: {
     name: faker.company.bsBuzz(),
   },
-  // TODO add this back in for createProgram
-  // store: {
-  //   protocol: randomInt(1, 10),
-  //   pointer: faker.random.alpha({ count: 59, casing: "lower" })
-  // },
-  operatorWallets: [faker.finance.ethereumAddress()],
+  operatorWallets: [mockedOperatorWallet],
+  roles: [
+    {
+      address: mockedOperatorWallet,
+      role: "OWNER",
+      createdAtBlock: "0",
+    },
+  ],
+  tags: ["program"],
   ...overrides,
 });
 
@@ -65,48 +68,193 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
   const applicationsEndTime = faker.date.soon(10, applicationsStartTime);
   const roundStartTime = faker.date.future(1, applicationsEndTime);
   const roundEndTime = faker.date.soon(21, roundStartTime);
+  const roundFeePercentage = 10000;
+  const protocolFeePercentage = 10000;
   return {
     id: faker.finance.ethereumAddress(),
+    strategyName: "allov2.DonationVotingMerkleDistributionDirectTransferStrategy",
+    chainId: 1,
     roundMetadata: {
       name: faker.company.name(),
       programContractAddress: faker.finance.ethereumAddress(),
-      matchingFunds: {
+      roundType: "private",
+      eligibility: {
+        description: faker.lorem.sentence(),
+        requirements: [
+          {
+            requirement: "",
+          },
+        ],
+      },
+      quadraticFundingConfig: {
         matchingCap: true,
         matchingCapAmount: 100,
         matchingFundsAvailable: 1000,
+        minDonationThreshold: true,
+        minDonationThresholdAmount: 1,
+        sybilDefense: "none",
       },
     },
     applicationsStartTime,
     applicationsEndTime,
     roundStartTime,
     roundEndTime,
-    token: faker.finance.ethereumAddress(),
+    token: ethers.constants.AddressZero, // to match our token list
     votingStrategy: faker.finance.ethereumAddress(),
-    payoutStrategy: faker.finance.ethereumAddress(),
+    payoutStrategy: {
+      id: faker.finance.ethereumAddress(),
+      isReadyForPayout: false,
+      strategyName: ROUND_PAYOUT_MERKLE,
+    },
+    protocolFeePercentage,
+    roundFeePercentage,
     ownedBy: faker.finance.ethereumAddress(),
-    operatorWallets: [faker.finance.ethereumAddress()],
+    operatorWallets: [mockedOperatorWallet],
+    roles: [
+      {
+        address: mockedOperatorWallet,
+        role: "OWNER",
+        createdAtBlock: "0",
+      },
+    ],
+    finalized: false,
+    tags: ["allo-v2"],
+    matchAmount: 0n,
+    matchAmountInUsd: 0,
+    fundedAmount: 0n,
+    fundedAmountInUsd: 0,
+    matchingDistribution: null,
+    readyForPayoutTransaction: null,
     ...overrides,
   };
 };
 
-export const makeMatchingStatsData = (): MatchingStatsData => {
+export const makeDirectGrantRoundData = (
+  overrides: Partial<Round> = {}
+): Round => {
+  const applicationsStartTime = faker.date.soon();
+  const applicationsEndTime = faker.date.soon(10, applicationsStartTime);
+  const roundStartTime = faker.date.future(1, applicationsEndTime);
+  const roundEndTime = faker.date.soon(21, roundStartTime);
+  const roundFeePercentage = 10000;
+  const protocolFeePercentage = 10000;
   return {
-    projectName: faker.company.name(),
-    projectId: faker.finance.ethereumAddress().toString(),
-    uniqueContributorsCount: faker.datatype.number(),
-    matchPoolPercentage: faker.datatype.number(),
+    id: faker.finance.ethereumAddress(),
+    strategyName: "allov2.DonationVotingMerkleDistributionDirectTransferStrategy",
+    chainId: 1,
+    roundMetadata: {
+      name: faker.company.name(),
+      programContractAddress: faker.finance.ethereumAddress(),
+      roundType: "private",
+      eligibility: {
+        description: faker.lorem.sentence(),
+        requirements: [
+          {
+            requirement: "",
+          },
+        ],
+      },
+      quadraticFundingConfig: {
+        matchingCap: true,
+        matchingCapAmount: 100,
+        matchingFundsAvailable: 1000,
+        minDonationThreshold: true,
+        minDonationThresholdAmount: 1,
+        sybilDefense: "none",
+      },
+    },
+    applicationsStartTime,
+    applicationsEndTime,
+    roundStartTime,
+    roundEndTime,
+    token: ethers.constants.AddressZero, // to match our token list
+    votingStrategy: faker.finance.ethereumAddress(),
+    payoutStrategy: {
+      id: faker.finance.ethereumAddress(),
+      isReadyForPayout: false,
+      strategyName: ROUND_PAYOUT_DIRECT,
+    },
+    protocolFeePercentage,
+    roundFeePercentage,
+    ownedBy: faker.finance.ethereumAddress(),
+    operatorWallets: [mockedOperatorWallet],
+    roles: [
+      {
+        address: mockedOperatorWallet,
+        role: "OWNER",
+        createdAtBlock: "0",
+      },
+    ],
+    finalized: false,
+    matchAmount: 0n,
+    matchAmountInUsd: 0,
+    fundedAmount: 0n,
+    fundedAmountInUsd: 0,
+    matchingDistribution: null,
+    readyForPayoutTransaction: null,
+    ...overrides,
   };
 };
 
+export const makeMatchingStatsData = (): DistributionMatch => {
+  return {
+    projectName: faker.company.name(),
+    applicationId: faker.datatype.number().toString(),
+    projectId: formatBytes32String(faker.company.name().slice(0, 31)),
+    contributionsCount: faker.datatype.number(),
+    matchPoolPercentage: faker.datatype.number(),
+    matchAmountInToken: faker.datatype.number().toString(),
+    originalMatchAmountInToken: faker.datatype.number().toString(),
+    projectPayoutAddress: faker.finance.ethereumAddress(),
+    anchorAddress: faker.finance.ethereumAddress(),
+  };
+};
+
+export const makeApplication = (): GrantApplication => {
+  return {
+    id: faker.finance.ethereumAddress(),
+    round: faker.finance.ethereumAddress(),
+    recipient: faker.finance.ethereumAddress(),
+    projectsMetaPtr: {
+      protocol: randomInt(1, 10),
+      pointer: faker.random.alpha({ count: 59, casing: "lower" }),
+    },
+    status: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "APPEAL", "FRAUD"][
+      randomInt(0, 5)
+    ] as ProjectStatus,
+    applicationIndex: faker.datatype.number(),
+    createdAt: faker.date.past().toDateString(),
+    anchorAddress: faker.finance.ethereumAddress(),
+    distributionTransaction: null,
+  };
+};
+
+export type QFDistribution = {
+  projectId: string;
+  matchAmountInUSD: number;
+  totalContributionsInUSD: number;
+  matchPoolPercentage: number;
+  matchAmountInToken: BigNumber;
+  projectPayoutAddress: string;
+  uniqueContributorsCount: number;
+  revisedMatch: bigint;
+  contributionsCount: number;
+  matched: bigint;
+  revisedContributionCount: number;
+};
 export const makeQFDistribution = (): QFDistribution => {
   return {
     projectId: faker.finance.ethereumAddress().toString(),
     matchAmountInUSD: faker.datatype.number(),
     totalContributionsInUSD: faker.datatype.number(),
     matchPoolPercentage: faker.datatype.number(),
-    matchAmountInToken: faker.datatype.number(),
+    matchAmountInToken: parseEther(faker.datatype.number().toString()),
     projectPayoutAddress: faker.finance.ethereumAddress(),
     uniqueContributorsCount: faker.datatype.number(),
+    revisedMatch: BigInt(1),
+    contributionsCount: faker.datatype.number(),
+    matched: BigInt(1),
+    revisedContributionCount: faker.datatype.number(),
   };
 };
 
@@ -145,6 +293,11 @@ export interface MakeGrantApplicationDataParams {
   projectGithubOverride?: string;
   projectTwitterOverride?: string;
   applicationAnswers?: GrantApplication["answers"];
+  payoutStrategy?: GrantApplication["payoutStrategy"];
+  statusSnapshots?: GrantApplication["statusSnapshots"];
+  inReview?: boolean;
+  status?: GrantApplication["status"];
+  applicationIndex?: GrantApplication["applicationIndex"];
 }
 
 export const makeGrantApplicationData = (
@@ -157,6 +310,11 @@ export const makeGrantApplicationData = (
     projectGithubOverride,
     projectTwitterOverride,
     applicationAnswers,
+    payoutStrategy,
+    statusSnapshots,
+    status,
+    inReview,
+    applicationIndex,
   } = {
     ownerAddress: faker.finance.ethereumAddress(),
     ...overrides,
@@ -182,9 +340,26 @@ export const makeGrantApplicationData = (
       faker.random.alpha({ count: 10, casing: "lower" }),
     round:
       roundIdOverride || faker.random.alpha({ count: 59, casing: "lower" }),
+
+    payoutStrategy: payoutStrategy ?? {
+      strategyName: ROUND_PAYOUT_MERKLE,
+      id: zeroAddress,
+      payouts: [],
+    },
+
+    statusSnapshots: statusSnapshots ?? [
+      {
+        status: "PENDING",
+        updatedAt: moment().subtract(1, "days").toDate(),
+      },
+    ],
+
     recipient: faker.finance.ethereumAddress(),
+    distributionTransaction: null,
+    inReview: inReview ?? false,
     project: {
       lastUpdated: 1659714564,
+      createdAt: 1659714564,
       id: faker.random.alpha({ count: 10, casing: "lower" }),
       owners: [
         {
@@ -196,10 +371,6 @@ export const makeGrantApplicationData = (
       website: faker.internet.domainName(),
       bannerImg: faker.random.alpha({ count: 59, casing: "lower" }),
       logoImg: faker.random.alpha({ count: 59, casing: "lower" }),
-      metaPtr: {
-        protocol: randomInt(1, 10),
-        pointer: faker.random.alpha({ count: 59, casing: "lower" }),
-      },
       projectGithub: projectGithubOverride ?? undefined,
       projectTwitter: projectTwitterOverride ?? undefined,
       credentials: makeProjectCredentials(credentialInputData, ownerAddress),
@@ -209,9 +380,15 @@ export const makeGrantApplicationData = (
       protocol: randomInt(1, 10),
       pointer: faker.random.alpha({ count: 59, casing: "lower" }),
     },
-    status: ["PENDING", "APPROVED", "REJECTED", "APPEAL", "FRAUD"][
-      randomInt(0, 4)
-    ] as ProjectStatus,
+    projectId: "0x" + faker.random.alphaNumeric(40).toLowerCase(),
+    status:
+      status ??
+      (["PENDING", "APPROVED", "REJECTED", "CANCELLED", "APPEAL", "FRAUD"][
+        randomInt(0, 4)
+      ] as ProjectStatus),
+    applicationIndex: applicationIndex ?? faker.datatype.number(),
+    anchorAddress: faker.finance.ethereumAddress(),
+    createdAt: faker.datatype.number().toString(),
   };
 };
 
@@ -248,13 +425,7 @@ export const makeProjectCredentials = (
 };
 
 export const renderWrapped = (ui: JSX.Element) => {
-  render(
-    <Provider store={store}>
-      <ReduxRouter store={store} history={history}>
-        {ui}
-      </ReduxRouter>
-    </Provider>
-  );
+  render(<MemoryRouter>{ui}</MemoryRouter>);
 };
 
 // TODO finish and replace other renderWrapped function @vacekj
@@ -276,47 +447,6 @@ export const renderWithProgramContext = (
       </ReadProgramContext.Provider>
     </MemoryRouter>
   );
-
-export const renderWithApplicationContext = (
-  ui: JSX.Element,
-  grantApplicationStateOverrides: Partial<ApplicationState> = {},
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  dispatch: any = jest.fn()
-) =>
-  render(
-    <MemoryRouter>
-      <ApplicationContext.Provider
-        value={{
-          state: {
-            ...initialApplicationState,
-            ...grantApplicationStateOverrides,
-          },
-          dispatch,
-        }}
-      >
-        {ui}
-      </ApplicationContext.Provider>
-    </MemoryRouter>
-  );
-
-export const wrapWithApplicationContext = (
-  ui: JSX.Element,
-  grantApplicationStateOverrides: Partial<ApplicationState> = {},
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  dispatch: any = jest.fn()
-) => (
-  <ApplicationContext.Provider
-    value={{
-      state: {
-        ...initialApplicationState,
-        ...grantApplicationStateOverrides,
-      },
-      dispatch,
-    }}
-  >
-    {ui}
-  </ApplicationContext.Provider>
-);
 
 export const wrapWithFinalizeRoundContext = (
   ui: JSX.Element,

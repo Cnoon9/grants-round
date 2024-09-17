@@ -1,5 +1,5 @@
 type SpinnerProps = {
-  text: string;
+  text?: string;
 };
 
 export function Spinner(props: SpinnerProps) {
@@ -16,7 +16,7 @@ export function Spinner(props: SpinnerProps) {
   );
 }
 
-const LoadingRing = (props: { className?: string }) => (
+export const LoadingRing = (props: { className?: string }) => (
   <svg
     className={props.className}
     data-testid="spinner-logo"

@@ -1,79 +1,183 @@
-import { useContext, useEffect, useState } from "react";
-import {
-  Control,
-  Controller,
-  FieldArrayWithId,
-  SubmitHandler,
-  useFieldArray,
-  UseFieldArrayAppend,
-  UseFieldArrayRemove,
-  useForm,
-  UseFormGetValues,
-  UseFormRegister,
-} from "react-hook-form";
-import { NavigateFunction, useLocation, useNavigate } from "react-router-dom";
-import { FormStepper as FS } from "../common/FormStepper";
-import {
-  ApplicationMetadata,
-  Program,
-  ProgressStatus,
-  QuestionOptions,
-  Round,
-} from "../api/types";
-import { FormContext } from "../common/FormWizard";
-import { generateApplicationSchema } from "../api/utils";
-import ProgressModal from "../common/ProgressModal";
-import ErrorModal from "../common/ErrorModal";
-import { errorModalDelayMs } from "../../constants";
-import { useCreateRound } from "../../context/round/CreateRoundContext";
 import { datadogLogs } from "@datadog/browser-logs";
 import {
-  CheckIcon,
-  InformationCircleIcon,
-  PencilIcon,
-  PlusSmIcon,
-  XIcon,
-} from "@heroicons/react/solid";
-import { Switch } from "@headlessui/react";
-import ReactTooltip from "react-tooltip";
-import { Button } from "../common/styles";
-import InfoModal from "../common/InfoModal";
+  EyeIcon,
+  EyeOffIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+} from "@heroicons/react/outline";
+import { PencilIcon, PlusSmIcon, XIcon } from "@heroicons/react/solid";
+import { isLitUnavailable, useAllo } from "common";
+import { Button } from "common/src/styles";
+import { RoundCategory } from "data-layer";
+import _ from "lodash";
+import { useContext, useEffect, useState } from "react";
+import {
+  DeepRequired,
+  SubmitHandler,
+  useFieldArray,
+  useForm,
+} from "react-hook-form";
+import { NavigateFunction, useLocation, useNavigate } from "react-router-dom";
+import { getAddress } from "viem";
+import { errorModalDelayMs } from "../../constants";
+import { useCreateRoundStore } from "../../stores/createRoundStore";
+import {
+  ApplicationMetadata,
+  EditQuestion,
+  Program,
+  ProgressStatus,
+  ProjectRequirements,
+  Round,
+} from "../api/types";
+import {
+  SchemaQuestion,
+  generateApplicationSchema,
+  typeToText,
+} from "../api/utils";
+import AddQuestionModal from "../common/AddQuestionModal";
+import BaseSwitch from "../common/BaseSwitch";
+import ErrorModal from "../common/ErrorModal";
+import { FormStepper as FS } from "../common/FormStepper";
+import { FormContext } from "../common/FormWizard";
+import { InputIcon } from "../common/InputIcon";
+import PreviewQuestionModal from "../common/PreviewQuestionModal";
+import ProgressModal from "../common/ProgressModal";
+import { JsonRpcSigner } from "@ethersproject/providers";
+import { useAccount } from "wagmi";
+import { getEthersSigner } from "../../app/wagmi";
 
-const payoutQuestion: QuestionOptions = {
-  title: "Payout Wallet Address",
-  required: true,
-  encrypted: false,
-  inputType: "text",
-};
-export const initialQuestions: QuestionOptions[] = [
+export const getInitialQuestionsQF = (chainId: number): SchemaQuestion[] => [
   {
-    title: "Email Address",
+    id: 0,
+    title: "Payout Wallet Address",
     required: true,
-    encrypted: true,
-    inputType: "text",
+    encrypted: false,
+    hidden: true,
+    type: "address",
+    fixed: true,
+    metadataExcluded: true,
   },
   {
+    id: 1,
+    title: "Email Address",
+    required: true,
+    encrypted: !isLitUnavailable(chainId),
+    hidden: true,
+    type: "email",
+  },
+  {
+    id: 2,
     title: "Funding Sources",
     required: true,
     encrypted: false,
-    inputType: "text",
+    hidden: false,
+    type: "short-answer",
   },
   {
+    id: 3,
     title: "Team Size",
     required: true,
     encrypted: false,
-    inputType: "text",
+    hidden: false,
+    type: "number",
   },
 ];
+
+export const getInitialQuestionsDirect = (chainId: number) => [
+  {
+    id: 1,
+    title: "Email Address",
+    required: true,
+    encrypted: !isLitUnavailable(chainId),
+    hidden: true,
+    type: "email",
+    fixed: true,
+  },
+  {
+    id: 2,
+    title: "Application detail",
+    required: true,
+    encrypted: false,
+    hidden: false,
+    type: "paragraph",
+    fixed: false,
+  },
+  {
+    id: 3,
+    title: "Payout wallet address",
+    required: true,
+    encrypted: false,
+    hidden: true,
+    type: "address",
+    fixed: true,
+    metadataExcluded: true,
+  },
+  {
+    id: 4,
+    title: "Milestones",
+    required: true,
+    encrypted: false,
+    hidden: false,
+    type: "paragraph",
+  },
+  {
+    id: 5,
+    title: "Funding Sources",
+    required: true,
+    encrypted: false,
+    hidden: false,
+    type: "short-answer",
+  },
+  {
+    id: 6,
+    title: "Team Size",
+    required: true,
+    encrypted: false,
+    hidden: false,
+    type: "number",
+  },
+];
+
+export const initialRequirements: ProjectRequirements = {
+  twitter: {
+    required: false,
+    verification: false,
+  },
+  github: {
+    required: false,
+    verification: false,
+  },
+};
+
+/*
+ * -------------------------------------------------------------------------------------------
+ * Please remember to update the version number in the schema when making changes to the form.
+ * -------------------------------------------------------------------------------------------
+ */
+
+const VERSION = "2.0.0";
 
 export function RoundApplicationForm(props: {
   initialData: {
     program: Program;
   };
   stepper: typeof FS;
+  configuration?: { roundCategory?: RoundCategory };
 }) {
+  const [signer, setSigner] = useState<JsonRpcSigner>();
   const [openProgressModal, setOpenProgressModal] = useState(false);
-  const [openHeadsUpModal, setOpenHeadsUpModal] = useState(false);
+  const [openPreviewModal, setOpenPreviewModal] = useState(false);
+  const [openAddQuestionModal, setOpenAddQuestionModal] = useState(false);
+  const [toEdit, setToEdit] = useState<EditQuestion | undefined>();
+  const { chainId, isConnected, connector } = useAccount();
+
+  useEffect(() => {
+    const init = async () => {
+      const s = await getEthersSigner(connector!, chainId!);
+      setSigner(s);
+    };
+    if (isConnected && chainId && connector?.getAccounts) init();
+  }, [chainId, isConnected, connector]);
 
   const { currentStep, setCurrentStep, stepsCount, formData } =
     useContext(FormContext);
@@ -86,11 +190,18 @@ export function RoundApplicationForm(props: {
 
   const navigate = useNavigate();
 
-  const defaultQuestions: ApplicationMetadata["questions"] =
-    // @ts-expect-error TODO: either fix this or refactor the whole formstepper
-    formData?.applicationMetadata?.questions ?? initialQuestions;
+  const roundCategory =
+    props.configuration?.roundCategory ?? RoundCategory.QuadraticFunding;
 
-  const { control, handleSubmit, register, getValues } = useForm<Round>({
+  // @ts-expect-error TODO: either fix this or refactor the whole formstepper
+  const questionsArg = formData?.applicationMetadata?.questions;
+  const defaultQuestions: ApplicationMetadata["questions"] = questionsArg
+    ? questionsArg
+    : roundCategory === RoundCategory.QuadraticFunding
+    ? getInitialQuestionsQF(chainId!)
+    : getInitialQuestionsDirect(chainId!);
+
+  const { control, handleSubmit } = useForm<Round>({
     defaultValues: {
       ...formData,
       applicationMetadata: {
@@ -99,136 +210,139 @@ export function RoundApplicationForm(props: {
     },
   });
 
-  const { fields, remove, append } = useFieldArray({
+  const { fields, remove, append, update } = useFieldArray({
     name: "applicationMetadata.questions",
     control,
   });
-  const [isInEditState, setIsInEditState] = useState<boolean[]>(
-    fields.map(() => false)
-  );
+
+  const [projectRequirements, setProjectRequirements] =
+    useState<ProjectRequirements>({ ...initialRequirements });
 
   const {
     createRound,
-    IPFSCurrentStatus,
-    votingContractDeploymentStatus,
-    payoutContractDeploymentStatus,
-    roundContractDeploymentStatus,
+    clearStatuses,
+    ipfsStatus,
+    contractDeploymentStatus,
     indexingStatus,
-  } = useCreateRound();
+    error: createRoundError,
+  } = useCreateRoundStore();
 
+  /** Upon succesful creation of round, redirect to program details */
   useEffect(() => {
     const isSuccess =
-      IPFSCurrentStatus === ProgressStatus.IS_SUCCESS &&
-      votingContractDeploymentStatus === ProgressStatus.IS_SUCCESS &&
-      payoutContractDeploymentStatus === ProgressStatus.IS_SUCCESS &&
-      roundContractDeploymentStatus === ProgressStatus.IS_SUCCESS &&
+      ipfsStatus === ProgressStatus.IS_SUCCESS &&
+      contractDeploymentStatus === ProgressStatus.IS_SUCCESS &&
       indexingStatus === ProgressStatus.IS_SUCCESS;
 
     if (isSuccess) {
       redirectToProgramDetails(navigate, 2000, programId);
+      /* Clear the store progress statuses in order to not redirect when creating another round */
+      /*The delay is to prevent clearing the statuses before the user is redirected */
+      setTimeout(() => {
+        clearStatuses();
+      }, 3_000);
     }
   }, [
-    IPFSCurrentStatus,
-    votingContractDeploymentStatus,
-    payoutContractDeploymentStatus,
-    roundContractDeploymentStatus,
+    contractDeploymentStatus,
+    ipfsStatus,
     indexingStatus,
     programId,
     navigate,
+    roundCategory,
+    clearStatuses,
   ]);
 
+  /** If there's an error, show an error dialog and redirect back to program */
   useEffect(() => {
     if (
-      IPFSCurrentStatus === ProgressStatus.IS_ERROR ||
-      votingContractDeploymentStatus === ProgressStatus.IS_ERROR ||
-      payoutContractDeploymentStatus === ProgressStatus.IS_ERROR ||
-      roundContractDeploymentStatus === ProgressStatus.IS_ERROR
+      ipfsStatus === ProgressStatus.IS_ERROR ||
+      contractDeploymentStatus === ProgressStatus.IS_ERROR
     ) {
       setTimeout(() => {
         setOpenErrorModal(true);
       }, errorModalDelayMs);
     }
-
-    if (indexingStatus === ProgressStatus.IS_ERROR) {
-      redirectToProgramDetails(navigate, 5000, programId);
-    }
   }, [
-    IPFSCurrentStatus,
-    votingContractDeploymentStatus,
-    payoutContractDeploymentStatus,
-    roundContractDeploymentStatus,
+    contractDeploymentStatus,
     indexingStatus,
+    ipfsStatus,
     navigate,
     programId,
   ]);
 
   const prev = () => setCurrentStep(currentStep - 1);
 
+  const allo = useAllo();
+
   const next: SubmitHandler<Round> = async (values) => {
-    if (!openHeadsUpModal) {
-      setOpenHeadsUpModal(true);
-      return;
-    }
-
     try {
-      setOpenProgressModal(true);
-      const data: Partial<Round> = { ...formData, ...values };
+      if (allo === null) {
+        throw "wallet not connected";
+      }
 
-      const roundMetadataWithProgramContractAddress: Round["roundMetadata"] = {
+      setOpenProgressModal(true);
+      const data = _.merge(formData, values);
+
+      const roundMetadataWithProgramContractAddress = {
         ...(data.roundMetadata as Round["roundMetadata"]),
         programContractAddress: programId,
-      };
+      } as DeepRequired<Round["roundMetadata"]>;
 
       const applicationQuestions = {
         lastUpdatedOn: Date.now(),
         applicationSchema: generateApplicationSchema(
-          data.applicationMetadata?.questions
+          fields,
+          projectRequirements
         ),
+        version: VERSION,
       };
 
       const round = {
         ...data,
         ownedBy: programId,
         operatorWallets: props.initialData.program.operatorWallets,
-      } as Round;
+      } as DeepRequired<Round>;
 
-      await createRound({
-        roundMetadataWithProgramContractAddress,
-        applicationQuestions,
-        round,
+      await createRound(allo, {
+        roundData: {
+          roundCategory: roundCategory,
+          roundMetadataWithProgramContractAddress,
+          applicationQuestions,
+          roundStartTime: round.roundStartTime,
+          roundEndTime: round.roundEndTime,
+          applicationsStartTime: round.applicationsStartTime,
+          applicationsEndTime: round.applicationsEndTime,
+          token: round.token,
+          matchingFundsAvailable:
+            round.roundMetadata.quadraticFundingConfig
+              ?.matchingFundsAvailable ?? 0,
+          roundOperators: round.operatorWallets.map(getAddress),
+        },
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        walletSigner: signer!,
       });
     } catch (error) {
       datadogLogs.logger.error(
-        `error: RoundApplcationForm next - ${error}, programId - ${programId}`
+        `error: RoundApplicationForm next - ${error}, programId - ${programId}`
       );
-      console.error("RoundApplcationForm", error);
+      console.error("RoundApplicationForm", error);
     }
   };
 
-  const progressSteps = [
+  const progressStepsQF = [
     {
       name: "Storing",
       description: "The metadata is being saved in a safe place.",
-      status: IPFSCurrentStatus,
-    },
-    {
-      name: "Deploying",
-      description: "The quadratic funding contract is being deployed.",
-      status: votingContractDeploymentStatus,
-    },
-    {
-      name: "Deploying",
-      description: "The payout contract is being deployed.",
-      status: payoutContractDeploymentStatus,
+      status: ipfsStatus,
     },
     {
       name: "Deploying",
       description: "The round contract is being deployed.",
-      status: roundContractDeploymentStatus,
+      status: contractDeploymentStatus,
     },
     {
       name: "Indexing",
-      description: "The subgraph is indexing the data.",
+      description: "The data is being indexed.",
       status: indexingStatus,
     },
     {
@@ -242,65 +356,204 @@ export function RoundApplicationForm(props: {
   ];
 
   const disableNext: boolean =
-    IPFSCurrentStatus === ProgressStatus.IN_PROGRESS ||
-    votingContractDeploymentStatus === ProgressStatus.IN_PROGRESS ||
-    payoutContractDeploymentStatus === ProgressStatus.IN_PROGRESS ||
-    roundContractDeploymentStatus === ProgressStatus.IN_PROGRESS ||
+    ipfsStatus === ProgressStatus.IN_PROGRESS ||
+    contractDeploymentStatus === ProgressStatus.IN_PROGRESS ||
     indexingStatus === ProgressStatus.IN_PROGRESS ||
     indexingStatus === ProgressStatus.IS_SUCCESS ||
     !props.initialData.program;
 
+  const projectRequirementsHandler = (
+    data: [
+      keyof ProjectRequirements,
+      keyof ProjectRequirements[keyof ProjectRequirements],
+      boolean,
+    ][]
+  ) => {
+    let tmpRequirements = { ...projectRequirements };
+
+    data.forEach(([mainKey, subKey, value]) => {
+      tmpRequirements = {
+        ...tmpRequirements,
+        [mainKey]: {
+          ...tmpRequirements[mainKey],
+          [subKey]: value,
+        },
+      };
+    });
+
+    setProjectRequirements(tmpRequirements);
+  };
+
   const formSubmitModals = () => (
-    <InfoModal
-      title={"Heads up!"}
-      body={<InfoModalBody />}
-      isOpen={openHeadsUpModal}
-      setIsOpen={setOpenHeadsUpModal}
-      continueButtonAction={() => {
-        handleSubmit(next)();
-      }}
+    <ProgressModal
+      isOpen={openProgressModal}
+      subheading={"Please hold while we create your Grant Round."}
+      steps={progressStepsQF}
     >
-      <ProgressModal
-        isOpen={openProgressModal}
-        subheading={"Please hold while we create your Grant Round."}
-        steps={progressSteps}
-      >
-        <ErrorModal
-          isOpen={openErrorModal}
-          setIsOpen={setOpenErrorModal}
-          tryAgainFn={handleSubmit(next)}
-          doneFn={() => {
-            setOpenErrorModal(false);
-            setOpenProgressModal(false);
-            setOpenHeadsUpModal(false);
-          }}
-        />
-      </ProgressModal>
-    </InfoModal>
+      <ErrorModal
+        isOpen={openErrorModal}
+        subheading={createRoundError?.toString()}
+        setIsOpen={setOpenErrorModal}
+        tryAgainFn={handleSubmit(next)}
+        doneFn={() => {
+          setOpenErrorModal(false);
+          setOpenProgressModal(false);
+        }}
+      />
+    </ProgressModal>
   );
+
+  const singleQuestion = (field: SchemaQuestion, key: number) => (
+    <div key={key} data-testid="application-question">
+      <div className="flex flex-row my-4 items-center">
+        <div className="text-sm basis-2/3">
+          <div className="flex flex-row text-xs text-grey-400 items-center">
+            <span>
+              <InputIcon className="mr-1 mb-0.5" type={field.type} size={14} />
+            </span>
+            <span className="first-letter:capitalize">
+              {typeToText(field.type)}
+            </span>
+          </div>
+          {field.title}
+          {field.choices &&
+            field.choices?.length > 0 &&
+            field.choices.map((choice, index) => (
+              <div key={index} className="ml-1 border-l border-gray-200">
+                <span className="ml-2">&bull;</span>
+                <span className="ml-2 text-xs">{choice}</span>
+              </div>
+            ))}
+        </div>
+        <div className="basis-1/3 flex justify-end items-center">
+          <div className="text-sm justify-end p-2 leading-tight">
+            <div className="flex justify-end">
+              {fieldRequired(field.required)}
+            </div>
+            <div className="flex justify-end">
+              {fieldEncrypted(field.encrypted)}
+            </div>
+            <div className="flex justify-end">{fieldHidden(field.hidden)}</div>
+          </div>
+          <div className="text-sm justify-center flex p-2">
+            <div className="w-5">
+              {key >= 0 && (
+                <PencilIcon
+                  data-testid="edit-question"
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setToEdit({
+                      index: key,
+                      field: field,
+                    });
+                    setOpenAddQuestionModal(true);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+          <div className="w-5 text-red-600">
+            {key >= 0 && (
+              <div
+                data-testid="remove-question"
+                onClick={() => removeQuestion(key)}
+              >
+                <XIcon className="cursor-pointer" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <hr />
+    </div>
+  );
+
+  const ApplicationQuestions = () => {
+    const f = fields.map((field, i) =>
+      singleQuestion(field, field.fixed ? -1 : i)
+    );
+
+    return (
+      <div>
+        {[...f]}
+        <Button
+          type="button"
+          $variant="outline"
+          className="inline-flex items-center px-3.5 py-2 mt-5 border-none shadow-sm text-sm rounded text-violet-500 bg-violet-100"
+          onClick={() => {
+            setToEdit(undefined);
+            setOpenAddQuestionModal(true);
+          }}
+        >
+          <PlusSmIcon className="h-5 w-5 mr-1" aria-hidden="true" />
+          Add question
+        </Button>
+        <AddQuestionModal
+          show={openAddQuestionModal}
+          onSave={addOrEditQuestion}
+          onClose={() => {
+            setToEdit(undefined);
+            setOpenAddQuestionModal(false);
+          }}
+          question={toEdit}
+        />
+        <PreviewQuestionModal
+          show={openPreviewModal}
+          onClose={() => setOpenPreviewModal(false)}
+        />
+      </div>
+    );
+  };
+
+  const addOrEditQuestion = (question: EditQuestion) => {
+    setOpenAddQuestionModal(false);
+    if (question.field) {
+      if (!question.index && question.index !== 0) {
+        append({ ...question.field, id: fields.length });
+      } else {
+        update(question.index, question.field);
+      }
+    }
+  };
+
+  const removeQuestion = (index: number) => {
+    remove(index);
+  };
 
   return (
     <div>
       <div className="md:grid md:grid-cols-3 md:gap-6">
         <ReviewInformation />
-        <ProjectInformation />
+        <Box
+          title="Project Information"
+          description="These details will be collected from project owners by default during the project creation process."
+        >
+          <ProjectInformation />
+        </Box>
       </div>
-      <hr className="my-6" />
-      <div className="md:grid md:grid-cols-3 md:gap-6">
+      <div className="md:grid md:grid-cols-3 md:gap-6 mt-7">
         <div className="md:col-span-1"></div>
         <div className="mt-5 md:mt-0 md:col-span-2">
-          <form onSubmit={handleSubmit(next)} className="text-grey-500">
-            <ApplicationInformation
-              fields={fields}
-              register={register}
-              editStates={isInEditState}
-              setEditStates={setIsInEditState}
-              getValues={getValues}
-              control={control}
-              remove={remove}
-              append={append}
+          <Box
+            title="Project Socials"
+            description="These details will be collected from project owners by default during the creation process."
+          >
+            <ProjectSocials
+              handler={projectRequirementsHandler}
+              requirements={projectRequirements}
             />
-
+          </Box>
+        </div>
+        <div className="md:col-span-1"></div>
+        <div className="mt-5 md:mt-0 md:col-span-2">
+          <Box
+            title="Application Questions"
+            description="Add round application questions for project owners to fulfill the application process."
+            onlyTopRounded={true}
+          >
+            <ApplicationQuestions />
+          </Box>
+          <form onSubmit={handleSubmit(next)} className="text-grey-500">
             <div className="px-6 align-middle py-3.5 shadow-md">
               <Steps
                 currentStep={currentStep}
@@ -317,6 +570,104 @@ export function RoundApplicationForm(props: {
   );
 }
 
+const ProjectSocials = ({
+  handler,
+  requirements,
+}: {
+  handler: (
+    data: [
+      keyof ProjectRequirements,
+      keyof ProjectRequirements[keyof ProjectRequirements],
+      boolean,
+    ][]
+  ) => void;
+  requirements: ProjectRequirements;
+}) => (
+  <>
+    <div
+      className={`flex flex-row mt-4 ${
+        requirements.twitter.required ? "mb-1" : "mb-4"
+      }`}
+    >
+      <div className="text-sm basis-4/5">Project Twitter</div>
+      <div className="basis-1/5 flex justify-end">
+        <BaseSwitch
+          testid="test-switch-id"
+          activeLabel="*Required"
+          inactiveLabel="*Optional"
+          value={requirements.twitter.required}
+          handler={async (a: boolean) => {
+            // clear required twitterVerification, if twitter itself is not required
+            handler([
+              ["twitter", "required", a],
+              ["twitter", "verification", false],
+            ]);
+          }}
+        />
+      </div>
+    </div>
+    {requirements.twitter.required && (
+      <div className="flex flex-row items-center mb-4 border-gray-200 border border-l-1 border-r-0 border-t-0 border-b-0">
+        <div className="text-xs basis-4/5 ml-2">
+          Verification of account ownership
+        </div>
+        <div className="basis-1/5 flex justify-end">
+          <BaseSwitch
+            testid="test-switch-id"
+            activeLabel="*Required"
+            inactiveLabel="*Optional"
+            value={requirements.twitter.verification}
+            handler={async (a: boolean) => {
+              handler([["twitter", "verification", a]]);
+            }}
+          />
+        </div>
+      </div>
+    )}
+    <hr />
+    <div
+      className={`flex flex-row mt-4 ${
+        requirements.github.required ? "mb-1" : "mb-4"
+      }`}
+    >
+      <div className="text-sm basis-4/5">Project Github</div>
+      <div className="basis-1/5 flex justify-end">
+        <BaseSwitch
+          testid="test-switch-id"
+          activeLabel="*Required"
+          inactiveLabel="*Optional"
+          value={requirements.github.required}
+          handler={async (a: boolean) => {
+            // clear required githubVerification, if GitHub itself is not required
+            handler([
+              ["github", "required", a],
+              ["github", "verification", false],
+            ]);
+          }}
+        />
+      </div>
+    </div>
+    {requirements.github.required && (
+      <div className="flex flex-row items-center mb-4 border-gray-200 border border-l-1 border-r-0 border-t-0 border-b-0">
+        <div className="text-xs basis-4/5 ml-2">
+          Verification of account ownership
+        </div>
+        <div className="basis-1/5 flex justify-end">
+          <BaseSwitch
+            testid="test-switch-id"
+            activeLabel="*Required"
+            inactiveLabel="*Optional"
+            value={requirements.github.verification}
+            handler={async (a: boolean) => {
+              handler([["github", "verification", a]]);
+            }}
+          />
+        </div>
+      </div>
+    )}
+  </>
+);
+
 function ReviewInformation() {
   return (
     <div className="md:col-span-1">
@@ -326,324 +677,84 @@ function ReviewInformation() {
         fulfill the application process.
       </p>
       <p className="italic mt-4 text-sm text-grey-400">
-        Note: that some personal identifiable information will be stored
+        Note that some personal identifiable information will be stored
         publicly.
       </p>
     </div>
   );
 }
 
-function ProjectInformation() {
-  return (
-    <div className="mt-5 md:mt-0 md:col-span-2">
-      <div className="rounded shadow-sm bg-white pt-7 pb-6 sm:px-6">
-        <p className="mb-2">Project Information</p>
-        <p className="text-sm text-grey-400 mb-6">
-          These details will be collected from project owners by default during
-          the project creation process.
-        </p>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project Name</span>
-          <span className="text-xs text-violet-400">*Required</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project Website</span>
-          <span className="text-xs text-violet-400">*Required</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project Twitter</span>
-          <span className="text-xs text-grey-400">Optional</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Your GitHub Username</span>
-          <span className="text-xs text-grey-400">Optional</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project GitHub Organization</span>
-          <span className="text-xs text-grey-400">Optional</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project Logo</span>
-          <span className="text-xs text-grey-400">Optional</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project Banner</span>
-          <span className="text-xs text-grey-400">Optional</span>
-        </div>
-        <hr />
-        <div className="flex my-4">
-          <span className="flex-1 text-sm">Project Description</span>
-          <span className="text-xs text-violet-400">*Required</span>
-        </div>
-      </div>
+const fieldRequired = (required: boolean) => (
+  <span className={`text-xs ${required ? "text-violet-400" : "text-grey-400"}`}>
+    {required ? "*Required" : "Optional"}
+  </span>
+);
+
+const fieldEncrypted = (encrypted: boolean) => (
+  <div className={`text-xs text-grey-400 flex flex-row`}>
+    <div className="w-4 mr-1">
+      {encrypted ? <LockClosedIcon /> : <LockOpenIcon />}
     </div>
-  );
-}
+    <div>{encrypted ? "Encrypted" : "Not Encrypted"}</div>
+  </div>
+);
 
-function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(" ");
-}
+const fieldHidden = (hidden: boolean) => (
+  <div className={`text-xs text-grey-400 flex flex-row`}>
+    <div className="w-4 mr-1">{hidden ? <EyeOffIcon /> : <EyeIcon />}</div>
+    <div>{hidden ? "Hidden from Explorer" : "Shown in Explorer"}</div>
+  </div>
+);
 
-function EncryptedInformation() {
+// is this always going to be static?
+function ProjectInformation() {
+  const fields = [
+    { name: "Project Name", required: true },
+    { name: "Project Website", required: true },
+    { name: "Project Logo", required: false },
+    { name: "Project Banner", required: false },
+    { name: "Project Description", required: true },
+  ];
+
   return (
     <>
-      <InformationCircleIcon
-        data-tip
-        data-background-color="#0E0333"
-        data-for="encrypted-tooltip"
-        className="inline h-4 w-4 ml-2 mr-3"
-        data-testid={"encrypted-tooltip"}
-      />
-
-      <ReactTooltip
-        id="encrypted-tooltip"
-        place="bottom"
-        type="dark"
-        effect="solid"
-      >
-        <p className="text-xs">
-          Encryption allows for greater <br />
-          security and confidentiailty <br />
-          for your applicants.
-        </p>
-      </ReactTooltip>
+      {fields.map((field, i) => (
+        <div key={i}>
+          <div className="flex my-4">
+            <span className="flex-1 text-sm">{field.name}</span>
+            {fieldRequired(field.required)}
+          </div>
+          {i !== fields.length - 1 && <hr />}
+        </div>
+      ))}
     </>
   );
 }
 
-function ApplicationInformation(props: {
-  fields: FieldArrayWithId<Round, "applicationMetadata.questions">[];
-  register: UseFormRegister<Round>;
-  editStates: boolean[];
-  setEditStates: (a: boolean[]) => void;
-  getValues: UseFormGetValues<Round>;
-  control: Control<Round>;
-  remove: UseFieldArrayRemove;
-  append: UseFieldArrayAppend<Round, "applicationMetadata.questions">;
-}) {
-  const {
-    fields,
-    register,
-    editStates,
-    setEditStates,
-    getValues,
-    control,
-    remove,
-    append,
-  } = props;
-
-  const normalTitle = (index: number, disabled?: boolean) => (
-    <div className="my-4">
-      {getValues(`applicationMetadata.questions.${index}.title`)}
-      <PencilIcon
-        onClick={() => {
-          const newEditState = [...editStates];
-          newEditState[index] = true;
-          setEditStates(newEditState);
-        }}
-        className={classNames(
-          disabled ? "hidden" : "visible",
-          "inline h-4 w-4 mb-1 ml-2 text-grey-400"
-        )}
-        data-testid={"edit-title"}
-      />
+const Box = ({
+  title,
+  description,
+  onlyTopRounded = false,
+  children,
+}: {
+  title: string;
+  description: string;
+  onlyTopRounded?: boolean;
+  children: React.ReactNode;
+}) => (
+  <div className="mt-5 md:mt-0 md:col-span-2">
+    <div
+      className={`${
+        onlyTopRounded ? "rounded-t" : "rounded"
+      } shadow-sm bg-white pt-7 pb-6 sm:px-6`}
+    >
+      <p className="mb-2 font-bold">{title}</p>
+      <p className="text-sm text-grey-400 mb-6">{description}</p>
+      <hr />
+      <div>{children}</div>
     </div>
-  );
-
-  const editableTitle = (index: number) => (
-    <div className="flex my-2 gap-2 items-center">
-      <input
-        {...register(`applicationMetadata.questions.${index}.title`)}
-        type="text"
-        placeholder="Enter desired application info here."
-        data-testid={"question-title-input"}
-        className="text-sm border-violet-400 rounded-md w-full"
-      />
-
-      <button
-        className={
-          "border shadow-sm border-grey-100 rounded flex items-center gap-1 px-2 pr-3"
-        }
-        onClick={() => {
-          const newEditState = [...editStates];
-          newEditState[index] = false;
-          setEditStates(newEditState);
-        }}
-        data-testid={"save-title"}
-      >
-        <CheckIcon className="inline h-5 w-5 my-1 mx-1 text-teal-500" />
-        Save
-      </button>
-    </div>
-  );
-
-  const encryptionToggle = (index: number, disabled?: boolean) => {
-    return (
-      <Controller
-        control={control}
-        name={`applicationMetadata.questions.${index}.encrypted`}
-        render={({ field }) => (
-          <Switch.Group
-            as="div"
-            className={classNames(
-              disabled ? "opacity-60" : "opacity-100",
-              "flex items-center justify-end"
-            )}
-          >
-            <span className="flex-grow">
-              <Switch.Label
-                as="span"
-                className="text-sm font-medium text-gray-900 flex justify-end"
-                passive
-                data-testid="encrypted-toggle-label"
-              >
-                <p className="text-xs text-right my-auto">
-                  {field.value ? "Encrypted" : "Unencrypted"}
-                </p>
-
-                <EncryptedInformation />
-              </Switch.Label>
-            </span>
-            <Switch
-              {...field}
-              checked={field.value}
-              value={field.value.toString()}
-              className="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-              data-testid="encrypted-toggle"
-              disabled={disabled}
-            >
-              <span
-                aria-hidden="true"
-                className={classNames(
-                  field.value
-                    ? "translate-x-5 bg-black"
-                    : "translate-x-0 bg-white",
-                  "pointer-events-none inline-block h-5 w-5 transform rounded-full shadow ring-0 transition duration-200 ease-in-out"
-                )}
-              />
-            </Switch>
-          </Switch.Group>
-        )}
-      />
-    );
-  };
-
-  const requiredToggle = (index: number, disabled?: boolean) => {
-    return (
-      <Controller
-        control={control}
-        name={`applicationMetadata.questions.${index}.required`}
-        render={({ field }) => (
-          <Switch.Group
-            as="div"
-            className={classNames(
-              disabled ? "opacity-80" : "opacity-100",
-              "flex items-center justify-end"
-            )}
-            data-testid="required-toggle-label"
-          >
-            <span className="flex-grow">
-              <Switch.Label
-                as="span"
-                className="text-sm font-medium text-gray-900"
-                passive
-              >
-                {field.value ? (
-                  <p className="text-xs mr-2 text-right text-violet-400">
-                    *Required
-                  </p>
-                ) : (
-                  <p className="text-xs mr-2 text-right">Optional</p>
-                )}
-              </Switch.Label>
-            </span>
-            <Switch
-              {...field}
-              checked={field.value}
-              value={field.value.toString()}
-              className="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              data-testid="required-toggle"
-              disabled={disabled}
-            >
-              <span
-                aria-hidden="true"
-                className={classNames(
-                  field.value
-                    ? "translate-x-5 bg-violet-400"
-                    : "translate-x-0 bg-white",
-                  "pointer-events-none inline-block h-5 w-5 transform rounded-full shadow ring-0 transition duration-200 ease-in-out"
-                )}
-              />
-            </Switch>
-          </Switch.Group>
-        )}
-      />
-    );
-  };
-
-  const Question = (props: { index: number }) => {
-    const { index } = props;
-    return (
-      <div data-testid={"application-question"}>
-        <div className="flex flex-row">
-          <div className="text-sm basis-2/5">
-            {editStates[index] ||
-            getValues(`applicationMetadata.questions.${index}.title`).length ==
-              0
-              ? editableTitle(index)
-              : normalTitle(index)}
-          </div>
-          <div className="basis-3/5 flex justify-around">
-            <div className="my-auto w-1/2">{encryptionToggle(index)}</div>
-            <div className="my-auto w-1/3">{requiredToggle(index)}</div>
-            <div className="my-auto">
-              <DeleteQuestion onClick={() => remove(index)} />
-            </div>
-          </div>
-        </div>
-        <hr />
-      </div>
-    );
-  };
-
-  return (
-    <div className="mt-5 md:mt-0 md:col-span-2">
-      <div className="rounded-t shadow-sm pt-7 pb-10 sm:px-6 bg-white">
-        <div className="flex">
-          <p className="flex-1 mb-2">Application Information</p>
-        </div>
-        <p className="text-sm text-grey-400 mb-6">
-          Project Owners will need to fill out an application with the details
-          below.
-        </p>
-
-        {disabledPayoutQuestion}
-        <hr />
-        {fields.map((field, index) => (
-          <Question key={index} index={index} />
-        ))}
-
-        <AddQuestion
-          onClick={() =>
-            append({
-              title: "",
-              required: false,
-              encrypted: false,
-              inputType: "text",
-            })
-          }
-        />
-      </div>
-    </div>
-  );
-}
+  </div>
+);
 
 function redirectToProgramDetails(
   navigate: NavigateFunction,
@@ -653,144 +764,4 @@ function redirectToProgramDetails(
   setTimeout(() => {
     navigate(`/program/${programId}`);
   }, waitSeconds);
-}
-
-const disabledPayoutQuestion = (
-  <div className="flex flex-row">
-    <div className="text-sm basis-2/5">
-      <div className="my-4">{payoutQuestion.title}</div>
-    </div>
-    <div className="basis-3/5 flex justify-around">
-      <div className="my-auto w-1/2">
-        <Switch.Group
-          as="div"
-          className={classNames("opacity-60", "flex items-center justify-end")}
-        >
-          <span className="flex-grow">
-            <Switch.Label
-              as="span"
-              className="text-sm font-medium text-gray-900 flex justify-end"
-              passive
-            >
-              <p className="text-xs my-auto">Unencrypted</p>
-
-              <InformationCircleIcon
-                data-tip
-                data-background-color="#0E0333"
-                data-for="encrypted-tooltip"
-                className="inline h-4 w-4 ml-2 mr-3"
-              />
-
-              <ReactTooltip
-                id="encrypted-tooltip"
-                place="bottom"
-                type="dark"
-                effect="solid"
-              >
-                <p className="text-xs">
-                  Encryption allows for greater <br />
-                  security and confidentiailty <br />
-                  for your applicants.
-                </p>
-              </ReactTooltip>
-            </Switch.Label>
-          </span>
-          <Switch
-            checked={false}
-            className="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-            disabled={true}
-          >
-            <span
-              aria-hidden="true"
-              className={classNames(
-                "translate-x-0 bg-white",
-                "pointer-events-none inline-block h-5 w-5 transform rounded-full shadow ring-0 transition duration-200 ease-in-out"
-              )}
-            />
-          </Switch>
-        </Switch.Group>
-      </div>
-      <div className="my-auto w-1/3">
-        <Switch.Group
-          as="div"
-          className={classNames("opacity-80", "flex items-center justify-end")}
-        >
-          <span className="flex-grow">
-            <Switch.Label
-              as="span"
-              className="text-sm font-medium text-gray-900"
-              passive
-            >
-              <p className="text-xs mr-2 text-violet-400 text-right">
-                *Required
-              </p>
-            </Switch.Label>
-          </span>
-          <Switch
-            checked={true}
-            className="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-            disabled={true}
-          >
-            <span
-              aria-hidden="true"
-              className={classNames(
-                "translate-x-5 bg-violet-400",
-                "pointer-events-none inline-block h-5 w-5 transform rounded-full shadow ring-0 transition duration-200 ease-in-out"
-              )}
-            />
-          </Switch>
-        </Switch.Group>
-      </div>
-      <div className="my-auto">
-        <XIcon
-          className={classNames(
-            "invisible",
-            "inline h-4 w-4 mb-1 ml-2 text-red-600"
-          )}
-        />
-      </div>
-    </div>
-  </div>
-);
-
-function DeleteQuestion(props: { onClick: () => void }) {
-  return (
-    <XIcon
-      className={classNames("visible", "inline h-4 w-4 mb-1 ml-2 text-red-600")}
-      data-testid={"remove-question"}
-      onClick={props.onClick}
-    />
-  );
-}
-
-function AddQuestion(props: { onClick: () => void }) {
-  return (
-    <Button
-      type="button"
-      $variant="outline"
-      className="inline-flex items-center px-3.5 py-2 mt-5 border-none shadow-sm text-sm rounded text-violet-500 bg-violet-100"
-      onClick={props.onClick}
-    >
-      <PlusSmIcon className="h-5 w-5 mr-1" aria-hidden="true" />
-      Add A Question
-    </Button>
-  );
-}
-
-function InfoModalBody() {
-  return (
-    <div className="text-sm text-grey-400 gap-16">
-      <p className="text-sm">
-        Each grant round on the protocol requires three smart contracts.
-      </p>
-      <p className="text-sm my-2">
-        You'll have to sign a transaction to deploy each of the following:
-      </p>
-      <ul className="list-disc list-inside pl-3">
-        <li>Quadratic Funding contract</li>
-        <li>Payout contract</li>
-        <li>Round core contract</li>
-      </ul>
-    </div>
-  );
 }

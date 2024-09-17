@@ -1,109 +1,141 @@
+import { datadogLogs } from "@datadog/browser-logs";
+import {
+  fetchPassport,
+  PassportResponse,
+  PassportResponseSchema,
+  PassportState,
+  submitPassport,
+  roundToPassportIdAndKeyMap,
+} from "common";
+import { Round } from "data-layer";
+import { useEffect, useMemo } from "react";
 import useSWR from "swr";
 
-export enum PassportState {
-  NOT_CONNECTED,
-  INVALID_PASSPORT,
-  MATCH_ELIGIBLE,
-  MATCH_INELIGIBLE,
-  LOADING,
-  ERROR,
-}
+export { submitPassport, fetchPassport, PassportState };
+export type { PassportResponse };
 
-type PassportEvidence = {
-  type: string;
-  rawScore: string;
-  threshold: string;
-};
+export function usePassport({
+  address,
+  round,
+}: {
+  address: string | undefined;
+  round: Round;
+}) {
+  const { communityId, apiKey } = roundToPassportIdAndKeyMap(round);
 
-export type PassportResponse = {
-  address?: string;
-  score?: string;
-  status?: string;
-  evidence?: PassportEvidence;
-  error?: string;
-  detail?: string;
-};
+  const swr = useSWR<
+    PassportResponse,
+    Response,
+    () => [string, string, string] | null
+  >(
+    () => (address && round ? [address, communityId, apiKey] : null),
+    async (args) => {
+      // for avalance we need to submit the passport to fetch the score.
+      const res =
+        round.chainId === 43114 // Avalanche
+          ? await submitPassport(...args)
+          : await fetchPassport(...args);
 
-type UsePassportHook = {
-  /** Passport for the given address and communityId */
-  passport: PassportResponse | undefined;
-  /** State of the hook
-   * Handles loading, error and other states */
-  state: PassportState;
-  /** Error during fetching of passport score */
-  error: Response | undefined;
-  /** Re-submits the address for passport scoring
-   * Promise resolves when the submission is successful, NOT when the score is updated */
-  recalculateScore: () => Promise<Response>;
-  /**
-   * Refreshes the score without resubmitting for scoring */
-  refreshScore: () => Promise<void>;
-};
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function usePassport(address: string, communityId: string): UsePassportHook {
-  const { data, error, mutate } = useSWR<PassportResponse>(
-    [address, communityId],
-    ([address, communityId]) =>
-      fetchPassport(address, communityId).then((res) => res.json())
+      if (res.ok) {
+        return PassportResponseSchema.parse(await res.json());
+      } else {
+        throw res;
+      }
+    }
   );
 
+  const passportState = useMemo(() => {
+    if (swr.error) {
+      switch (swr.error.status) {
+        case 400: // unregistered/nonexistent passport address
+          return PassportState.INVALID_PASSPORT;
+        case 401: // invalid API key
+          console.error("invalid key for the Passport api");
+          return PassportState.ERROR;
+        default:
+          console.error("Error fetching passport", swr.error);
+          return PassportState.ERROR;
+      }
+    }
+
+    if (swr.data) {
+      if (
+        !swr.data.score ||
+        !swr.data.evidence ||
+        swr.data.status === "ERROR"
+      ) {
+        datadogLogs.logger.error(
+          `error: callFetchPassport - invalid score response`,
+          swr.data
+        );
+        return PassportState.INVALID_RESPONSE;
+      }
+
+      return PassportState.SCORE_AVAILABLE;
+    }
+
+    if (!address) {
+      return PassportState.NOT_CONNECTED;
+    }
+
+    return PassportState.LOADING;
+  }, [swr.error, swr.data, address]);
+
+  const passportScore = useMemo(() => {
+    if (swr.data?.evidence) {
+      return swr.data.evidence.rawScore;
+    }
+    return 0;
+  }, [swr.data]);
+
+  const PROCESSING_REFETCH_INTERVAL_MS = 3000;
+  /** If passport is still processing, refetch it every PROCESSING_REFETCH_INTERVAL_MS */
+  useEffect(() => {
+    if (swr.data?.status === "PROCESSING") {
+      setTimeout(() => {
+        /* Revalidate */
+        swr.mutate();
+      }, PROCESSING_REFETCH_INTERVAL_MS);
+    }
+  }, [swr]);
+
+  const passportColor = useMemo<PassportColor>(() => {
+    if (passportScore < 15) {
+      return "orange";
+    } else if (passportScore >= 15 && passportScore < 25) {
+      return "yellow";
+    } else {
+      return "green";
+    }
+  }, [passportScore]);
+
+  const donationImpact = useMemo(() => {
+    if (passportScore < 15) {
+      return 0;
+    } else if (passportScore >= 15 && passportScore < 25) {
+      return 10 * (passportScore - 15);
+    } else {
+      return 100;
+    }
+  }, [passportScore]);
+
   return {
-    error,
-    state: PassportState.NOT_CONNECTED,
-    refreshScore: async () => {
-      await mutate();
-    },
-    recalculateScore: () => submitPassport(address, communityId),
-    passport: data,
+    passportState,
+    passportScore,
+    passportColor,
+    donationImpact,
   };
 }
 
-/**
- * Endpoint used to fetch the passport score for a given address
- *
- * @param address
- * @param communityId
- * @returns
- */
-export const fetchPassport = (
-  address: string,
-  communityId: string
-): Promise<Response> => {
-  const url = `${process.env.REACT_APP_PASSPORT_API_ENDPOINT}/registry/score/${communityId}/${address}`;
-  return fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.REACT_APP_PASSPORT_API_KEY}`,
-    },
-  });
+export type PassportColor = "orange" | "yellow" | "green" | "white" | "black";
+
+const passportColorToClassName: Record<PassportColor, string> = {
+  orange: "text-orange-400",
+  yellow: "text-yellow-400",
+  green: "text-green-400",
+  white: "text-white",
+  black: "text-black",
 };
 
-/**
- * Endpoint used to submit user's passport score for given communityId
- *
- * @param address string
- * @param communityId string
- * @returns
- */
-export const submitPassport = (
-  address: string,
-  communityId: string
-): Promise<Response> => {
-  const url = `${process.env.REACT_APP_PASSPORT_API_ENDPOINT}/registry/submit-passport`;
-
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.REACT_APP_PASSPORT_API_KEY}`,
-    },
-    body: JSON.stringify({
-      address,
-      community: communityId,
-      signature: "",
-      nonce: "",
-    }),
-  });
-};
+export const getClassForPassportColor = (color: PassportColor) =>
+  passportColorToClassName[color];

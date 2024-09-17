@@ -1,22 +1,54 @@
+const colors = require("tailwindcss/colors");
+const defaultTheme = require("tailwindcss/defaultTheme");
+
 module.exports = {
-  content: ["./src/**/*.{js,jsx,ts,tsx}"],
+  content: ["./src/**/*.{js,jsx,ts,tsx}", "../common/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
+    fontFamily: {
+      sans: ['"Modern Era"', ...defaultTheme.fontFamily.sans],
+      mono: ['"DM Mono"', ...defaultTheme.fontFamily.mono],
+    },
     extend: {
       animation: {
         "pulse-scale": "pulse-scale 2s ease-in-out infinite",
+      },
+      backgroundImage: {
+        "rainbow-gradient":
+          "linear-gradient(170deg, #FFD6C9 10%, #B8D9E7 40%, #ABE3EB 60%, #F2DD9E 90%)",
       },
       colors: {
         transparent: "transparent",
         black: "#000",
         white: "#FFF",
         grey: {
-          100: "#E2E0E7",
+          50: "#F3F3F5",
+          75: "#F7F7F7",
+          100: "#EBEBEB",
           150: "#F3F3F5",
           200: "#C4C1CF",
           250: "#BEBEBE",
           300: "#A7A2B6",
-          400: "#757087",
+          400: "#555", // "#757087",
           500: "#0E0333",
+        },
+        blue: {
+          ...colors.blue,
+          100: "#D3EDFE",
+          200: "#15B8DC",
+          300: "#5F94BC",
+          500: "#4881AD",
+          800: "#15003E",
+        },
+        green: {
+          ...colors.green,
+          50: "#DCF5F2",
+          100: "#ADEDE5",
+          200: "#47A095",
+          300: "rgba(0, 67, 59, 1)",
+        },
+        orange: {
+          ...colors.orange,
+          100: "#FFD9CD",
         },
         violet: {
           100: "#F0EBFF",
@@ -49,6 +81,13 @@ module.exports = {
         red: {
           100: "#D44D6E",
         },
+        "gitcoin-violet": {
+          100: "#F0EBFF",
+          200: "#C9B8FF",
+          300: "#8C65F7",
+          400: "#6F3FF5",
+          500: "#5932C4",
+        },
       },
       keyframes: {
         violetTransition: {
@@ -69,8 +108,22 @@ module.exports = {
             transform: "scale(2)",
           },
         },
+        peachTransition: {
+          "5%": {
+            "background-color": "#FF9776",
+            color: "#FFF",
+          },
+          "0%, 80%": {
+            "background-color": "#5F94BC",
+            color: "#FFF",
+          },
+        },
       },
     },
   },
-  plugins: [require("@tailwindcss/forms"), require("@tailwindcss/line-clamp")],
+  plugins: [
+    require("@tailwindcss/typography"),
+    require("@tailwindcss/forms"),
+    require("@tailwindcss/line-clamp"),
+  ],
 };

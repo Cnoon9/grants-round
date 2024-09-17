@@ -1,23 +1,21 @@
+import { Mocked } from "vitest";
 import { faker } from "@faker-js/faker";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { ChakraProvider } from "@chakra-ui/react";
 import {
   initialRoundState,
   RoundContext,
   RoundState,
 } from "./context/RoundContext";
+import { CartProject, ProjectMetadata, Round } from "./features/api/types";
+import { parseUnits, zeroAddress } from "viem";
 import {
-  ApplicationStatus,
-  Project,
-  ProjectMetadata,
-  Round,
-} from "./features/api/types";
-import { BallotProvider } from "./context/BallotContext";
-import { Provider } from "react-redux";
-import { ReduxRouter } from "@lagunovsky/redux-react-router";
-import { store } from "./app/store";
-import history from "./history";
-import { BigNumber, ethers } from "ethers";
+  DataLayer,
+  DataLayerProvider,
+  RoundGetRound,
+  RoundMetadata,
+} from "data-layer";
 
 export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
   const applicationsStartTime = faker.date.soon();
@@ -39,12 +37,16 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
     id: faker.finance.ethereumAddress(),
     roundMetadata: {
       name: faker.company.name(),
+      roundType: "private",
       eligibility: { description: "name", requirements: [] },
       programContractAddress: faker.finance.ethereumAddress(),
-      matchingFunds: {
-        matchingFundsAvailable: 1000,
-        matchingCap: true,
-        matchingCapAmount: 100,
+      quadraticFundingConfig: {
+        matchingFundsAvailable: 99999,
+        matchingCap: false,
+        matchingCapAmount: 0,
+        minDonationThreshold: false,
+        minDonationThresholdAmount: 0,
+        sybilDefense: "passport-mbds",
       },
     },
     store: {
@@ -56,6 +58,11 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
     roundStartTime,
     roundEndTime,
     token: faker.finance.ethereumAddress(),
+    payoutStrategy: {
+      id: "some-id",
+      strategyName:
+        "allov2.DonationVotingMerkleDistributionDirectTransferStrategy",
+    },
     votingStrategy: faker.finance.ethereumAddress(),
     ownedBy: faker.finance.ethereumAddress(),
     ...overrides,
@@ -63,11 +70,13 @@ export const makeRoundData = (overrides: Partial<Round> = {}): Round => {
 };
 
 export const makeApprovedProjectData = (
-  overrides?: Partial<Project>,
+  overrides?: Partial<CartProject>,
   projectMetadataOverrides?: Partial<ProjectMetadata>
-): Project => {
+): CartProject => {
   return {
+    amount: "",
     grantApplicationId: `${faker.finance.ethereumAddress()}-${faker.finance.ethereumAddress()}`,
+    grantApplicationFormAnswers: [],
     projectRegistryId: faker.datatype.number().toString(),
     recipient: faker.finance.ethereumAddress(),
     projectMetadata: {
@@ -75,12 +84,64 @@ export const makeApprovedProjectData = (
       description: faker.lorem.sentence(),
       website: faker.internet.url(),
       projectTwitter: faker.internet.userName(),
+      createdAt: new Date().valueOf(),
       projectGithub: faker.internet.userName(),
       userGithub: faker.internet.userName(),
       owners: [{ address: faker.finance.ethereumAddress() }],
+      lastUpdated: 0,
+      credentials: {},
       ...projectMetadataOverrides,
     },
-    status: ApplicationStatus.APPROVED,
+    status: "APPROVED",
+    applicationIndex: faker.datatype.number(),
+    roundId: faker.finance.ethereumAddress(),
+    chainId: 1,
+    ...overrides,
+  };
+};
+
+const makeTimestamp = (days?: number) =>
+  Math.floor(Number(faker.date.soon(days)) / 1000).toString();
+
+export const makeRoundMetadata = (
+  overrides?: Partial<RoundMetadata>
+): RoundMetadata => ({
+  name: faker.company.name(),
+  roundType: "public",
+  eligibility: {
+    description: faker.lorem.sentence(),
+    requirements: [
+      { requirement: faker.lorem.sentence() },
+      { requirement: faker.lorem.sentence() },
+    ],
+  },
+  programContractAddress: faker.finance.ethereumAddress(),
+  ...overrides,
+});
+
+export const makeRoundOverviewData = (
+  overrides?: Partial<RoundGetRound>,
+  roundMetadataOverrides?: Partial<RoundMetadata>
+): RoundGetRound => {
+  return {
+    id: faker.finance.ethereumAddress(),
+    chainId: 1,
+    createdAtBlock: 1,
+    roundMetadataCid: generateIpfsCid(),
+    applicationsStartTime: makeTimestamp(),
+    applicationsEndTime: makeTimestamp(10),
+    donationsStartTime: makeTimestamp(20),
+    donationsEndTime: makeTimestamp(30),
+    matchAmountInUsd: 1000000000000000000000000,
+    matchAmount: "1000000000000000000000000",
+    matchTokenAddress: zeroAddress,
+    roundMetadata: makeRoundMetadata(roundMetadataOverrides),
+    applications: Array.from({ length: 2 }).map((_, i) => ({ id: String(i) })),
+    strategyName:
+      "allov2.DonationVotingMerkleDistributionDirectTransferStrategy",
+    strategyAddress: faker.finance.ethereumAddress(),
+    strategyId: "",
+    tags: [],
     ...overrides,
   };
 };
@@ -90,37 +151,86 @@ export function generateIpfsCid() {
 }
 
 export const renderWithContext = (
-  ui: JSX.Element,
-  roundStateOverrides: Partial<RoundState> = {},
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  dispatch: any = jest.fn()
-) =>
-  render(
-    <MemoryRouter>
-      <RoundContext.Provider
-        value={{
-          state: { ...initialRoundState, ...roundStateOverrides },
-          dispatch,
-        }}
-      >
-        <BallotProvider>{ui}</BallotProvider>
-      </RoundContext.Provider>
-    </MemoryRouter>
-  );
+  ui: React.ReactNode,
+  overrides?: {
+    dispatch?: () => void;
+    dataLayer?: DataLayer;
+    roundState?: Partial<RoundState>;
+  }
+) => {
+  const dispatch = overrides?.dispatch ?? vi.fn();
+  const dataLayerMock =
+    overrides?.dataLayer ??
+    ({
+      getSearchBasedProjectCategories: vi.fn().mockResolvedValue([
+        {
+          id: "open-source",
+          name: "Open source",
+          images: [
+            "/assets/categories/category_01.jpg",
+            "/assets/categories/category_02.jpg",
+            "/assets/categories/category_03.jpg",
+            "/assets/categories/category_04.jpg",
+          ],
+          searchQuery: "open source, open source software",
+        },
+      ]),
+      getProjectCollections: vi.fn().mockResolvedValue([
+        {
+          id: "first-time-grantees",
+          author: "Gitcoin",
+          name: "First Time Grantees",
+          images: [
+            "/assets/collections/collection_01.jpg",
+            "/assets/collections/collection_02.jpg",
+            "/assets/collections/collection_03.jpg",
+            "/assets/collections/collection_04.jpg",
+          ],
+          description:
+            "This collection showcases all grantees in GG19 that have not participated in a past round on Grants Stack! Give these first-time grantees some love (and maybe some donations, too!).",
+          applicationRefs: [
+            "10:0x36f548e082b09b0cec5b3f5a7b78953c75de5e74:2",
+            "10:0x36f548e082b09b0cec5b3f5a7b78953c75de5e74:8",
+          ],
+        },
+        {
+          id: "grants-stack-veterans",
+          author: "Gitcoin",
+          name: "Grants Stack Veterans",
+          images: [
+            "/assets/collections/collection_05.jpg",
+            "/assets/collections/collection_06.jpg",
+          ],
+          description:
+            "This collection showcases all grantees in GG19 that have participated in a past GG18 and/or Beta Round! Give these Grants Stack Veterans some love (and maybe some donations, too!).",
+          applicationRefs: [
+            "10:0x36f548e082b09b0cec5b3f5a7b78953c75de5e74:1",
+            "10:0x4727e3265706c59dbc31e7c518960f4f843bb4da:16",
+          ],
+        },
+      ]),
+    } as unknown as Mocked<DataLayer>);
 
-export const renderWrapped = (ui: JSX.Element) => {
-  render(
-    <Provider store={store}>
-      <ReduxRouter store={store} history={history}>
-        {ui}
-      </ReduxRouter>
-    </Provider>
+  return render(
+    <ChakraProvider>
+      <MemoryRouter>
+        <DataLayerProvider client={dataLayerMock}>
+          <RoundContext.Provider
+            value={{
+              state: { ...initialRoundState, ...overrides?.roundState },
+              dispatch,
+            }}
+          >
+            {ui}
+          </RoundContext.Provider>
+        </DataLayerProvider>
+      </MemoryRouter>
+    </ChakraProvider>
   );
 };
-
 export const mockBalance = {
   data: {
-    value: BigNumber.from(ethers.utils.parseUnits("10", 18)),
+    value: parseUnits("10", 18),
   },
 };
 
@@ -129,9 +239,37 @@ export const mockSigner = {
 };
 
 export const mockNetwork = {
-  chain: { id: 5, name: "Goerli"},
-  chains: [
-    { id: 10, name: "Optimism" },
-    { id: 5, name: "Goerli" },
-  ],
+  chain: { id: 10, name: "Optimism" },
+  chains: [{ id: 10, name: "Optimism" }],
+};
+
+export const setWindowDimensions = (width: number, height: number): void => {
+  Object.defineProperty(window, "innerWidth", {
+    writable: true,
+    configurable: true,
+    value: width,
+  });
+
+  Object.defineProperty(window, "innerHeight", {
+    writable: true,
+    configurable: true,
+    value: height,
+  });
+
+  window.dispatchEvent(new Event("resize"));
+};
+
+// deviceRenderer.ts
+export type DeviceType = "mobile" | "tablet" | "desktop";
+
+export const renderComponentsBasedOnDeviceSize = (): DeviceType => {
+  const deviceWidth = window.innerWidth;
+
+  if (deviceWidth <= 480) {
+    return "mobile";
+  } else if (deviceWidth > 480 && deviceWidth <= 1024) {
+    return "tablet";
+  } else {
+    return "desktop";
+  }
 };

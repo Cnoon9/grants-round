@@ -1,11 +1,14 @@
-name: package/grant-explorer - Build -> Test
+name: Explorer - Lint & Test & Typecheck
 on:
   push:
-  pull_request:
     branches:
       - main
+      - release
+  pull_request:
+    branches:
+      - "**"
 jobs:
-  build-and-deploy:
+  lint-test-typecheck:
     concurrency: ci-grant-explorer-${{ github.head_ref || github.run_id }}
     runs-on: ubuntu-latest
     steps:
@@ -14,22 +17,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
-          cache: 'yarn'
-          cache-dependency-path: packages/grant-explorer/yarn.lock
+          node-version: '18'
+          cache: 'pnpm'
 
       - name: Install Dependencies
         run: |
-          yarn install
-          cd packages/grant-explorer
-          yarn install --frozen-lockfile
+          pnpm install
 
-      - name: Build Grant Explorer
+      - name: Lint Explorer
         run: |
-          yarn re-build
+          pnpm lint:explorer
 
-      - name: Test Grant Explorer
+      - name: Test Explorer
         run: |
-          yarn re-test
+          pnpm test:explorer
+
+      - name: Typecheck Explorer
+        run: |
+          pnpm typecheck:explorer

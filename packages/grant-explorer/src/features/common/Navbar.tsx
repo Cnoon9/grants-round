@@ -1,79 +1,148 @@
-import { Link } from "react-router-dom";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ReactComponent as GitcoinLogo } from "../../assets/gitcoinlogo-black.svg";
 import { ReactComponent as GrantsExplorerLogo } from "../../assets/topbar-logos-black.svg";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useBallot } from "../../context/BallotContext";
-import CustomerSupport from "./CustomerSupport";
+import { ReactComponent as GrantsExplorerLogoMobile } from "../../assets/explorer-logo-mobile.svg";
+import NavbarCart from "./NavbarCart";
+import { UserCircleIcon } from "@heroicons/react/24/outline";
+import { useEffect } from "react";
+import { useAccount } from "wagmi";
+import { useCartStorage } from "../../store";
+import { Link } from "react-router-dom";
+import { getAlloVersion } from "common/src/config";
+import { ExclamationCircleIcon } from "@heroicons/react/24/solid";
+// Note: we use this during a GG round, disabling until then.
+// import ExploreRoundsDropdown, {
+//   ExploreRoundsDropdownProps,
+// } from "./ExploreRoundsDropdown";
 
 export interface NavbarProps {
-  roundUrlPath: string;
+  customBackground?: string;
+  showWalletInteraction?: boolean;
+  showAlloVersionBanner?: boolean;
 }
 
 export default function Navbar(props: NavbarProps) {
-  const [shortlist] = useBallot();
+  /** This part keeps the store in sync between tabs */
+  const store = useCartStorage();
+
+  const updateStore = () => {
+    useCartStorage.persist.rehydrate();
+  };
+
+  useEffect(() => {
+    document.addEventListener("visibilitychange", updateStore);
+    window.addEventListener("focus", updateStore);
+    return () => {
+      document.removeEventListener("visibilitychange", updateStore);
+      window.removeEventListener("focus", updateStore);
+    };
+  }, []);
+  /** end of part that keeps the store in sync between tabs */
+
+  const showWalletInteraction = props.showWalletInteraction ?? true;
+  const { address: walletAddress } = useAccount();
+  const alloVersion = getAlloVersion();
+
+  // Note: we use this during a GG round, disabling until then.
+  // todo: update this list with GG21 featured rounds.
+  // const rounds: ExploreRoundsDropdownProps[] = [
+  // example:
+  //   {
+  //     chainId: 42161,
+  //     roundId: "26",
+  //     name: "WEB3 Infrastructure",
+  //     link: "/round/42161/26",
+  //   },
+  // ];
 
   return (
-    <nav className="bg-white">
-      <div className="mx-auto px-4 sm:px-6 lg:px-20">
+    <nav
+      className={`blurred fixed w-full z-20 shadow-[0_4px_24px_0px_rgba(0,0,0,0.08)] ${props.customBackground}`}
+    >
+      <div className="mx-auto px-4 sm:px-6 lg:px-20 max-w-screen-2xl">
         <div className="flex justify-between h-16">
           <div className="flex">
             <Link
-              to="#"
+              to={"/"}
               className="flex-shrink-0 flex items-center"
               data-testid={"home-link"}
             >
-              <GitcoinLogo className="block h-8 w-auto"/>
-              <div className="hidden lg:block md:block">
-                <span className="mx-6 text-grey-400">|</span>
-                <GrantsExplorerLogo className="lg:inline-block md:inline-block"/>
+              <div className="flex gap-1 lg:gap-3 items-center">
+                <GitcoinLogo className="" />
+                <div className="border-grey-400 border-2 h-4 border-r ml-[2px]" />
+                <GrantsExplorerLogo className="hidden lg:block" />
+                <GrantsExplorerLogoMobile className="lg:hidden" />
               </div>
             </Link>
           </div>
-          <div className="flex items-center gap-6">
-            <Shortlist
-              count={shortlist.length}
-              roundUrlPath={props.roundUrlPath}
-            />
-            <div id="connect-wallet-button">
-              <ConnectButton/>
-            </div>
-            <CustomerSupport/>
+          <div className="flex flex-row items-center gap-6 font-mono font-medium">
+            {/* {rounds && <ExploreRoundsDropdown rounds={rounds} />} */}
+            {showWalletInteraction && (
+              <div>
+                <div
+                  data-testid="connect-wallet-button"
+                  id="connect-wallet-button"
+                >
+                  <ConnectButton
+                    showBalance={false}
+                    accountStatus={{
+                      smallScreen: "avatar",
+                      largeScreen: "full",
+                    }}
+                    chainStatus={{ smallScreen: "icon" }}
+                  />
+                </div>
+              </div>
+            )}
+            {walletAddress && (
+              <div>
+                <Link
+                  to={`/contributors/${walletAddress}`}
+                  className="flex-shrink-0 flex items-center ph-no-capture"
+                  data-testid={"contributions-link"}
+                >
+                  <UserCircleIcon className="h-8 w-8 ph-no-capture" />
+                </Link>
+              </div>
+            )}
+            <NavbarCart cart={store.projects} />
           </div>
         </div>
       </div>
-    </nav>
-  );
-}
-
-export function Shortlist(props: { count: number; roundUrlPath: string }) {
-  return (
-    <span className="relative inline-block">
-      <Link to={`${props.roundUrlPath}/ballot`} data-testid={"ballot"}>
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M15 7V19H17V7H15ZM14 20H4V22H14V20ZM3 19V7H1V19H3ZM4 6H6V4H4V6ZM12 6H14V4H12V6ZM4 20C3.44772 20 3 19.5523 3 19H1C1 20.6569 2.34315 22 4 22V20ZM15 19C15 19.5523 14.5523 20 14 20V22C15.6569 22 17 20.6569 17 19H15ZM17 7C17 5.34315 15.6569 4 14 4V6C14.5523 6 15 6.44772 15 7H17ZM3 7C3 6.44772 3.44772 6 4 6V4C2.34315 4 1 5.34315 1 7H3ZM8 4H10V2H8V4ZM10 6H8V8H10V6ZM8 6C7.44772 6 7 5.55228 7 5H5C5 6.65685 6.34315 8 8 8V6ZM11 5C11 5.55228 10.5523 6 10 6V8C11.6569 8 13 6.65685 13 5H11ZM10 4C10.5523 4 11 4.44772 11 5H13C13 3.34315 11.6569 2 10 2V4ZM8 2C6.34315 2 5 3.34315 5 5H7C7 4.44772 7.44772 4 8 4V2Z"
-            fill="#0E0333"
-          />
-          {props.count ? <circle cx="16" cy="10" r="8" fill="#6F3FF5"/> : null}
-        </svg>
-
-        {Boolean(props.count) && (
-          <div
-            className="inline-flex absolute top-1 left-2 justify-center items-center w-4 h-3 text-white"
-            style={{
-              fontSize: 7.5,
-            }}
-          >
-            {props.count}
+      {props.showAlloVersionBanner && (
+        <div className="bg-white/40 backdrop-blur-sm p-4 text-center w-full font-medium flex flex-col items-center justify-center text-black">
+          <div>
+            <ExclamationCircleIcon className="h-5 w-5 inline-block mr-2" />
+            {alloVersion === "allo-v2" ? (
+              <>
+                Rounds launched before the 25th of March appear on Allo v1.
+                Check out those rounds{" "}
+                <a
+                  className="underline"
+                  target="_blank"
+                  href="https://explorer-v1.gitcoin.co"
+                >
+                  here
+                </a>
+                !
+              </>
+            ) : (
+              <>
+                Rounds launched after the 24th of March appear on Allo v2. Check
+                out those rounds{" "}
+                <a
+                  className="underline"
+                  target="_blank"
+                  href="https://explorer.gitcoin.co"
+                >
+                  here
+                </a>
+                !
+              </>
+            )}
           </div>
-        )}
-      </Link>
-    </span>
+        </div>
+      )}
+    </nav>
   );
 }

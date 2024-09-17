@@ -1,43 +1,70 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import {
-  initialQuestions,
-  RoundApplicationForm,
-} from "../RoundApplicationForm";
-import { useWallet } from "../../common/Auth";
-import { FormStepper } from "../../common/FormStepper";
-import { MemoryRouter } from "react-router-dom";
-import {
-  CreateRoundContext,
-  CreateRoundState,
-  initialCreateRoundState,
-} from "../../../context/round/CreateRoundContext";
-import { ApplicationMetadata, ProgressStatus } from "../../api/types";
-import { saveToIPFS } from "../../api/ipfs";
-import { deployRoundContract } from "../../api/round";
-import { waitForSubgraphSyncTo } from "../../api/subgraph";
-import { FormContext } from "../../common/FormWizard";
-import { randomInt } from "crypto";
 import { faker } from "@faker-js/faker";
-import { deployMerklePayoutStrategyContract } from "../../api/payoutStrategy/merklePayoutStrategy";
-import { deployQFVotingContract } from "../../api/votingStrategy/qfVotingStrategy";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { randomInt } from "crypto";
+import { act } from "react-dom/test-utils";
+import { MemoryRouter } from "react-router-dom";
+
+import { RoundCategory } from "data-layer";
+import { errorModalDelayMs } from "../../../constants";
+import { useCreateRoundStore } from "../../../stores/createRoundStore";
+import { saveToIPFS } from "../../api/ipfs";
+import {
+  ApplicationMetadata,
+  ProgressStatus,
+} from "../../api/types";
+import { FormStepper } from "../../common/FormStepper";
+import { FormContext } from "../../common/FormWizard";
+import {
+  RoundApplicationForm,
+  getInitialQuestionsQF,
+} from "../RoundApplicationForm";
 
 jest.mock("../../api/ipfs");
 jest.mock("../../api/round");
-jest.mock("../../api/subgraph");
 jest.mock("../../common/Auth");
-jest.mock("../../api/payoutStrategy/merklePayoutStrategy");
-jest.mock("../../api/votingStrategy/qfVotingStrategy");
+jest.mock("../../api/payoutStrategy/payoutStrategy");
 jest.mock("@rainbow-me/rainbowkit", () => ({
   ConnectButton: jest.fn(),
+  getDefaultConfig: jest.fn(),
 }));
-
+jest.mock("wagmi", () => ({
+  useAccount: () => ({
+    chainId: 1,
+    address: "0x0",
+  }),
+  useNetwork: () => ({
+    chain: jest.fn(),
+    chains: [
+      {
+        id: 10,
+        name: "Optimism",
+      },
+    ],
+  }),
+  useProvider: () => ({}),
+}));
 jest.mock("../../../constants", () => ({
   ...jest.requireActual("../../../constants"),
   errorModalDelayMs: 0, // NB: use smaller delay for faster tests
 }));
 
+jest.mock("common", () => ({
+  ...jest.requireActual("common"),
+  useAllo: () => ({}),
+}));
+
+jest.mock("../../../stores/createRoundStore", () => ({
+  ...jest.requireActual("../../../stores/createRoundStore"),
+}));
+
 beforeEach(() => {
+  jest.setTimeout(10000);
   jest.clearAllMocks();
 });
 
@@ -47,60 +74,13 @@ const randomMetadata = {
 
 describe("<RoundApplicationForm />", () => {
   beforeEach(() => {
-    (useWallet as jest.Mock).mockReturnValue({
-      chain: { name: "my blockchain" },
-      provider: {
-        getNetwork: () => ({
-          chainId: 0,
-        }),
-      },
-      signer: {
-        getChainId: () => 0,
-      },
-      address: "0x0",
-    });
     (saveToIPFS as jest.Mock).mockResolvedValue("some ipfs hash");
-    (deployQFVotingContract as jest.Mock).mockResolvedValue({
-      votingContractAddress: "0xVotingContract",
-    });
-    (deployMerklePayoutStrategyContract as jest.Mock).mockResolvedValue({
-      contractAddress: "0xPayoutContract",
-    });
-    (deployRoundContract as jest.Mock).mockResolvedValue({
-      transactionBlockNumber: 0,
-    });
-    (waitForSubgraphSyncTo as jest.Mock).mockResolvedValue(0);
-  });
-
-  describe("when submitting form", () => {
-    it("shows headsup modal when form is submitted to create a round", async () => {
-      renderWithContext(
-        <RoundApplicationForm
-          initialData={{
-            // @ts-expect-error Test file
-            program: {
-              operatorWallets: [],
-            },
-          }}
-          stepper={FormStepper}
-        />
-      );
-      const launch = screen.getByRole("button", { name: /Launch/i });
-      fireEvent.click(launch);
-
-      expect(await screen.findByTestId("info-modal")).toBeInTheDocument();
-    });
   });
 
   describe("when saving metadata fails", () => {
     const startProgressModal = async () => {
       const launch = screen.getByRole("button", { name: /Launch/i });
       fireEvent.click(launch);
-
-      const continueButton = await screen.findByRole("button", {
-        name: /Continue/i,
-      });
-      fireEvent.click(continueButton);
     };
 
     it("shows error modal when saving round application metadata fails", async () => {
@@ -113,12 +93,18 @@ describe("<RoundApplicationForm />", () => {
             },
           }}
           stepper={FormStepper}
-        />,
-        { IPFSCurrentStatus: ProgressStatus.IS_ERROR }
+          configuration={{ roundCategory: RoundCategory.QuadraticFunding }}
+        />
       );
       await startProgressModal();
-
-      expect(await screen.findByTestId("error-modal")).toBeInTheDocument();
+      useCreateRoundStore.setState({
+        ipfsStatus: ProgressStatus.IS_ERROR,
+      });
+      await waitFor(
+        async () =>
+          expect(await screen.findByTestId("error-modal")).toBeInTheDocument(),
+        { timeout: errorModalDelayMs + 1000 }
+      );
     });
 
     it("choosing done closes the error modal", async () => {
@@ -131,10 +117,12 @@ describe("<RoundApplicationForm />", () => {
             },
           }}
           stepper={FormStepper}
-        />,
-        { IPFSCurrentStatus: ProgressStatus.IS_ERROR }
+        />
       );
       await startProgressModal();
+      useCreateRoundStore.setState({
+        ipfsStatus: ProgressStatus.IS_ERROR,
+      });
 
       const done = await screen.findByTestId("done");
       fireEvent.click(done);
@@ -152,41 +140,30 @@ describe("<RoundApplicationForm />", () => {
             },
           }}
           stepper={FormStepper}
-        />,
-        { IPFSCurrentStatus: ProgressStatus.IS_ERROR }
+        />
       );
       await startProgressModal();
+      useCreateRoundStore.setState({
+        ipfsStatus: ProgressStatus.IS_ERROR,
+      });
 
-      expect(await screen.findByTestId("error-modal")).toBeInTheDocument();
-      const saveToIpfsCalls = (saveToIPFS as jest.Mock).mock.calls.length;
-      expect(saveToIpfsCalls).toEqual(2);
+      await waitFor(
+        async () =>
+          expect(await screen.findByTestId("error-modal")).toBeInTheDocument(),
+        { timeout: errorModalDelayMs + 1000 }
+      );
 
       const errorModalTryAgain = await screen.findByTestId("tryAgain");
       fireEvent.click(errorModalTryAgain);
 
       expect(screen.queryByTestId("error-modal")).not.toBeInTheDocument();
-      await waitFor(() => {
-        expect((saveToIPFS as jest.Mock).mock.calls.length).toEqual(
-          saveToIpfsCalls + 2
-        );
-      });
     });
   });
 
   describe("when saving round application metadata succeeds but create round transaction fails", () => {
-    const createRoundStateOverride = {
-      IPFSCurrentStatus: ProgressStatus.IS_SUCCESS,
-      roundContractDeploymentStatus: ProgressStatus.IS_ERROR,
-    };
-
     const startProgressModal = async () => {
       const launch = screen.getByRole("button", { name: /Launch/i });
       fireEvent.click(launch);
-
-      const continueButton = await screen.findByRole("button", {
-        name: /Continue/i,
-      });
-      fireEvent.click(continueButton);
     };
 
     it("shows error modal when create round transaction fails", async () => {
@@ -199,31 +176,23 @@ describe("<RoundApplicationForm />", () => {
             },
           }}
           stepper={FormStepper}
-        />,
-        createRoundStateOverride
+        />
       );
       await startProgressModal();
-
-      expect(await screen.findByTestId("error-modal")).toBeInTheDocument();
+      useCreateRoundStore.setState({
+        ipfsStatus: ProgressStatus.IS_SUCCESS,
+        contractDeploymentStatus: ProgressStatus.IS_ERROR,
+      });
+      await waitFor(
+        async () =>
+          expect(await screen.findByTestId("error-modal")).toBeInTheDocument(),
+        { timeout: errorModalDelayMs + 1000 }
+      );
     });
   });
 });
 
 describe("Application Form Builder", () => {
-  beforeEach(() => {
-    (useWallet as jest.Mock).mockReturnValue({
-      chain: { name: "my blockchain" },
-      provider: {
-        getNetwork: () => ({
-          chainId: 0,
-        }),
-      },
-      signer: {
-        getChainId: () => 0,
-      },
-      address: "0x0",
-    });
-  });
 
   it("displays the four default questions", () => {
     renderWithContext(
@@ -247,10 +216,12 @@ describe("Application Form Builder", () => {
   it("displays the existing questions if present in form data", () => {
     const expectedQuestions: ApplicationMetadata["questions"] = [
       {
+        id: 0,
         title: "Some question",
         required: false,
         encrypted: false,
-        inputType: "text",
+        type: "text",
+        hidden: false,
       },
     ];
     const setFormData = jest.fn();
@@ -283,9 +254,11 @@ describe("Application Form Builder", () => {
     expect(screen.getByText(expectedQuestions[0].title)).toBeInTheDocument();
   });
 
-  describe("Edit question title", () => {
+  describe("Edit question", () => {
     it("displays edit icons for each editable question", () => {
-      const editableQuestions = initialQuestions;
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
 
       renderWithContext(
         <RoundApplicationForm
@@ -299,13 +272,15 @@ describe("Application Form Builder", () => {
         />
       );
 
-      expect(screen.getAllByTestId("edit-title")).toHaveLength(
+      expect(screen.getAllByTestId("edit-question")).toHaveLength(
         editableQuestions.length
       );
     });
 
     it("enters editable state showing current title for that question when edit is clicked on that question", () => {
-      const editableQuestions = initialQuestions;
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
       const questionIndex = randomInt(0, editableQuestions.length);
 
       renderWithContext(
@@ -319,7 +294,7 @@ describe("Application Form Builder", () => {
           stepper={FormStepper}
         />
       );
-      const editIcons = screen.getAllByTestId("edit-title");
+      const editIcons = screen.getAllByTestId("edit-question");
       fireEvent.click(editIcons[questionIndex]);
 
       expect(
@@ -327,8 +302,11 @@ describe("Application Form Builder", () => {
       ).toBeInTheDocument();
     });
 
-    it("when in edit mode, saves input as question title when save is clicked on that question and reverts to default ui", async () => {
-      const questionIndex = randomInt(0, initialQuestions.length);
+    it("when in edit mode, saves input as question when save is clicked on that question and reverts to default ui", async () => {
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
+      const questionIndex = randomInt(0, editableQuestions.length);
       const newTitle = faker.lorem.sentence();
 
       renderWithContext(
@@ -342,8 +320,8 @@ describe("Application Form Builder", () => {
           stepper={FormStepper}
         />
       );
-      // edit title and save
-      const editIcons = screen.getAllByTestId("edit-title");
+      // edit question and save
+      const editIcons = screen.getAllByTestId("edit-question");
       fireEvent.click(editIcons[questionIndex]);
       const questionTitleInput = await screen.findByTestId(
         "question-title-input"
@@ -351,8 +329,8 @@ describe("Application Form Builder", () => {
       fireEvent.input(questionTitleInput, {
         target: { value: newTitle },
       });
-      const saveIcon = screen.getByTestId("save-title");
-      fireEvent.click(saveIcon);
+      const save = screen.getByTestId("save-question");
+      fireEvent.click(save);
 
       expect(await screen.findByText(newTitle)).toBeInTheDocument();
       expect(
@@ -364,7 +342,9 @@ describe("Application Form Builder", () => {
 
   describe("Encrypted toggle", () => {
     it("displays toggle for encryption option for each editable question", () => {
-      const editableQuestions = initialQuestions;
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
 
       renderWithContext(
         <RoundApplicationForm
@@ -378,15 +358,15 @@ describe("Application Form Builder", () => {
         />
       );
 
-      expect(screen.getAllByTestId("encrypted-toggle")).toHaveLength(
+      expect(screen.getAllByText("Not Encrypted")).toHaveLength(
         editableQuestions.length
       );
     });
 
-    it("toggles each encryption option when clicked", () => {
-      const isInitiallyEncrypted = initialQuestions.map((q) => q.encrypted);
-      const encryptionTrueClass = "bg-black";
-      const encryptionFalseClass = "bg-white";
+    it("toggles each encryption option when clicked", async () => {
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
 
       renderWithContext(
         <RoundApplicationForm
@@ -399,33 +379,29 @@ describe("Application Form Builder", () => {
           stepper={FormStepper}
         />
       );
-      const encryptionToggles = screen.getAllByTestId("encrypted-toggle");
-      encryptionToggles.forEach((toggle) => {
-        fireEvent.click(toggle);
-      });
 
-      const encryptionToggleLabels = screen.getAllByTestId(
-        "encrypted-toggle-label"
-      );
-      encryptionToggles.forEach((toggle, index) => {
-        if (isInitiallyEncrypted[index]) {
-          expect(toggle.childNodes[0]).toHaveClass(encryptionFalseClass);
-          expect(toggle).not.toBeChecked();
-          expect(encryptionToggleLabels[index]).toHaveTextContent(
-            "Unencrypted"
-          );
-        } else {
-          expect(toggle.childNodes[0]).toHaveClass(encryptionTrueClass);
-          expect(toggle).toBeChecked();
-          expect(encryptionToggleLabels[index]).toHaveTextContent("Encrypted");
-        }
-      });
+      for (let i = 0; i < editableQuestions.length; i++) {
+        const editIcons = screen.getAllByTestId("edit-question");
+        fireEvent.click(editIcons[i]);
+        const encryptionToggles = screen.getAllByTestId("encrypted-toggle");
+        encryptionToggles.forEach(async (toggle) => {
+          fireEvent.click(toggle);
+        });
+        const save = screen.getByTestId("save-question");
+        fireEvent.click(save);
+      }
+
+      const encryptionToggleLabels = screen.getAllByText("Encrypted");
+
+      expect(encryptionToggleLabels.length).toBe(1);
     });
   });
 
   describe("Required toggle", () => {
-    it("displays toggle for required option for each editable question", () => {
-      const editableQuestions = initialQuestions;
+    it("displays *Required for required option for each editable question", () => {
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
       renderWithContext(
         <RoundApplicationForm
           initialData={{
@@ -438,16 +414,16 @@ describe("Application Form Builder", () => {
         />
       );
 
-      expect(screen.getAllByTestId("required-toggle")).toHaveLength(
-        editableQuestions.length
+      // +4: it also shows *Required for Project Name, Project Website, Project Description and Wallet address
+      expect(screen.getAllByText("*Required")).toHaveLength(
+        editableQuestions.length + 4
       );
     });
 
     it("toggle each required option when clicked", () => {
-      const isInitiallyRequired = initialQuestions.map((q) => q.required);
-      const requiredTrueClass = "bg-violet-400";
-      const requiredFalseClass = "bg-white";
-
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
       renderWithContext(
         <RoundApplicationForm
           initialData={{
@@ -460,31 +436,53 @@ describe("Application Form Builder", () => {
         />
       );
 
-      const requiredToggles = screen.getAllByTestId("required-toggle");
-      requiredToggles.forEach((toggle) => {
-        fireEvent.click(toggle);
-      });
+      // Before:
+      // 1. Project Name Required
+      // 2. Project Website Required
+      // 3. Project Description Required
+      // 4. Wallet address Required
+      // Socials:
+      // 5. Twitter Optional
+      // 6. Github Optional
+      // Editable:
+      // 7. Email Required
+      // 8. Funding Source Required
+      // 9. Team Size Required
+      for (let i = 0; i < editableQuestions.length; i++) {
+        const editIcons = screen.getAllByTestId("edit-question");
+        fireEvent.click(editIcons[i]);
+        const requiredToggles = screen.getAllByTestId("required-toggle");
+        requiredToggles.forEach(async (toggle) => {
+          fireEvent.click(toggle);
+        });
+        const save = screen.getByTestId("save-question");
+        fireEvent.click(save);
+      }
 
-      const requiredToggleLabels = screen.getAllByTestId(
-        "required-toggle-label"
-      );
-      requiredToggles.forEach((toggle, index) => {
-        if (isInitiallyRequired[index]) {
-          expect(toggle.childNodes[0]).toHaveClass(requiredFalseClass);
-          expect(toggle).not.toBeChecked();
-          expect(requiredToggleLabels[index]).toHaveTextContent("Optional");
-        } else {
-          expect(toggle.childNodes[0]).toHaveClass(requiredTrueClass);
-          expect(toggle).toBeChecked();
-          expect(requiredToggleLabels[index]).toHaveTextContent(/Required/i);
-        }
-      });
+      // After:
+      // 1. Project Name Required
+      // 2. Project Website Required
+      // 3. Project Description Required
+      // 4. Wallet address Required
+      // Socials:
+      // 5. Twitter Optional
+      // 6. Github Optional
+      // Editable:
+      // 7. Email Optional
+      // 8. Funding Source Optional
+      // 9. Team Size Optional
+
+      const requiredToggleLabels = screen.getAllByText("*Required");
+
+      expect(requiredToggleLabels.length).toBe(4);
     });
   });
 
   describe("Remove question", () => {
     it("displays remove icon for each editable question", () => {
-      const editableQuestions = initialQuestions;
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
       renderWithContext(
         <RoundApplicationForm
           initialData={{
@@ -503,7 +501,9 @@ describe("Application Form Builder", () => {
     });
 
     it("removes question when remove icon is clicked", () => {
-      const editableQuestions = initialQuestions;
+      const editableQuestions = getInitialQuestionsQF(1).filter(
+        (q) => q.fixed !== true
+      );
 
       const indexToBeRemoved = randomInt(0, 3);
 
@@ -548,13 +548,14 @@ describe("Application Form Builder", () => {
 
       expect(
         screen.getByRole("button", {
-          name: /Add a Question/i,
+          name: /Add question/i,
         })
       ).toBeInTheDocument();
     });
 
     it("adds a new question on clicking add a new question button", async () => {
-      const editableQuestions = initialQuestions;
+      const editableQuestions = getInitialQuestionsQF(1);
+      const newTitle = "New Question";
 
       renderWithContext(
         <RoundApplicationForm
@@ -568,32 +569,269 @@ describe("Application Form Builder", () => {
         />
       );
 
+      // +1: Wallet Address
       expect(screen.getAllByTestId("application-question")).toHaveLength(
         editableQuestions.length
       );
 
       const addAQuestion = screen.getByRole("button", {
-        name: /Add a Question/i,
+        name: /Add question/i,
       });
       fireEvent.click(addAQuestion);
 
-      expect(screen.getAllByTestId("application-question")).toHaveLength(
-        editableQuestions.length + 1
+      let selectList = screen.getByTestId("select-question");
+      const selectButton = within(selectList).getByRole("button");
+      fireEvent.click(selectButton);
+
+      selectList = screen.getByTestId("select-question");
+
+      const selectType = within(selectList).getAllByText("Paragraph");
+      fireEvent.click(selectType[0]);
+
+      const inputField = screen.getByTestId("question-title-input");
+      fireEvent.change(inputField, { target: { value: newTitle } });
+
+      const save = screen.getByTestId("save-question");
+      fireEvent.click(save);
+
+      expect(screen.getAllByText(newTitle)).toHaveLength(1);
+    });
+  });
+  describe("Project Socials", () => {
+
+    it("displays the Project Socials", () => {
+      renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
       );
+
+      expect(screen.getByText("Project Twitter")).toBeInTheDocument();
+      expect(screen.getByText("Project Github")).toBeInTheDocument();
+    });
+
+    it("render the requirement initial correct", () => {
+      renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
+      );
+
+      // 1. Project Name Required
+      // 2. Project Website Required
+      // 3. Project Description Required
+      // 4. Wallet address Required
+      // Socials:
+      // 5. Twitter Optional <---
+      // 6. Github Optional  <---
+      // Editable:
+      // 7. Email Required
+      // 8. Funding Source Required
+      // 9. Team Size Required
+
+      expect(screen.getAllByText("Optional")).toHaveLength(2);
+    });
+
+    it("should render twitterVerification when twitter is required", async () => {
+      const { getAllByTestId } = renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
+      );
+
+      const switches = getAllByTestId("test-switch-id");
+
+      await act(async () => {
+        fireEvent.click(switches[0]); // twitter required: true
+      });
+
+      const updatedSwitches = getAllByTestId("test-switch-id");
+
+      expect(updatedSwitches.length).toBe(3);
+      expect(updatedSwitches[0]).toBeChecked(); // twitter
+      expect(updatedSwitches[1]).not.toBeChecked(); // twitter verification
+      expect(updatedSwitches[2]).not.toBeChecked(); // github
+    });
+
+    it("should render githubVerification when github is required", async () => {
+      const { getAllByTestId } = renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
+      );
+
+      const switches = getAllByTestId("test-switch-id");
+      expect(switches.length).toBe(2);
+
+      await act(async () => {
+        fireEvent.click(switches[1]); // github required: true
+      });
+
+      const updatedSwitches = getAllByTestId("test-switch-id");
+
+      expect(updatedSwitches.length).toBe(3);
+      expect(updatedSwitches[0]).not.toBeChecked(); // twitter
+      expect(updatedSwitches[1]).toBeChecked(); // github
+      expect(updatedSwitches[2]).not.toBeChecked(); // github verification
+    });
+
+    it("should render twitterVerification and githubVerification when twitter and github are required", async () => {
+      const { getAllByTestId } = renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
+      );
+
+      const switches = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(switches[0]); // twitter required: true
+      });
+
+      const updatedSwitches0 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches0[2]); // github required: true
+      });
+
+      const updatedSwitches = getAllByTestId("test-switch-id");
+
+      expect(updatedSwitches.length).toBe(4);
+      expect(updatedSwitches[0]).toBeChecked(); // twitter
+      expect(updatedSwitches[1]).not.toBeChecked(); // twitter verification
+      expect(updatedSwitches[2]).toBeChecked(); // github
+      expect(updatedSwitches[3]).not.toBeChecked(); // github verification
+    });
+
+    it("should toggle all switches on", async () => {
+      const { getAllByTestId } = renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
+      );
+
+      const switches = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(switches[0]); // twitter required: true
+      });
+
+      const updatedSwitches0 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches0[2]); // github required: true
+      });
+
+      const updatedSwitches1 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches1[1]); // twitter verification required: true
+      });
+
+      const updatedSwitches2 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches2[3]); // github verification required: true
+      });
+
+      const updatedSwitches = getAllByTestId("test-switch-id");
+
+      expect(updatedSwitches.length).toBe(4);
+      expect(updatedSwitches[0]).toBeChecked(); // twitter
+      expect(updatedSwitches[1]).toBeChecked(); // twitter verification
+      expect(updatedSwitches[2]).toBeChecked(); // github
+      expect(updatedSwitches[3]).toBeChecked(); // github verification
+    });
+
+    it("should toggle all switches off", async () => {
+      const { getAllByTestId } = renderWithContext(
+        <RoundApplicationForm
+          initialData={{
+            // @ts-expect-error Test file
+            program: {
+              operatorWallets: [],
+            },
+          }}
+          stepper={FormStepper}
+        />
+      );
+
+      const switches = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(switches[0]); // twitter required: true
+      });
+
+      const updatedSwitches0 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches0[2]); // github required: true
+      });
+
+      const updatedSwitches1 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches1[1]); // twitter verification required: true
+      });
+
+      const updatedSwitches2 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches2[3]); // github verification required: true
+      });
+
+      const updatedSwitches = getAllByTestId("test-switch-id");
+
+      expect(updatedSwitches.length).toBe(4);
+      expect(updatedSwitches[0]).toBeChecked(); // twitter
+      expect(updatedSwitches[1]).toBeChecked(); // twitter verification
+      expect(updatedSwitches[2]).toBeChecked(); // github
+      expect(updatedSwitches[3]).toBeChecked(); // github verification
+
+      const updatedSwitches3 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches3[0]); // twitter required: false
+      });
+
+      const updatedSwitches4 = getAllByTestId("test-switch-id");
+      await act(async () => {
+        fireEvent.click(updatedSwitches4[1]); // github required: false
+      });
+
+      const updatedSwitches5 = getAllByTestId("test-switch-id");
+
+      expect(updatedSwitches5.length).toBe(2);
+      expect(updatedSwitches5[0]).not.toBeChecked(); // twitter
+      expect(updatedSwitches5[1]).not.toBeChecked(); // github
     });
   });
 });
 
-export const renderWithContext = (
-  ui: JSX.Element,
-  createRoundStateOverrides: Partial<CreateRoundState> = {}
-) =>
-  render(
-    <MemoryRouter>
-      <CreateRoundContext.Provider
-        value={{ ...initialCreateRoundState, ...createRoundStateOverrides }}
-      >
-        {ui}
-      </CreateRoundContext.Provider>
-    </MemoryRouter>
-  );
+export const renderWithContext = (ui: JSX.Element) =>
+  render(<MemoryRouter>{ui}</MemoryRouter>);
